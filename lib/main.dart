@@ -4,6 +4,8 @@ import 'package:intl/date_symbol_data_local.dart'; // IMPORTANTE: Agregado para 
 import 'package:ams_control_contable/services/salidas_service.dart';
 import 'package:ams_control_contable/services/cuentas_cobrar_service.dart';
 import 'package:ams_control_contable/services/cuentas_pagar_service.dart';
+import 'package:ams_control_contable/services/gastos_service.dart';
+import 'package:ams_control_contable/services/usuarios_service.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -40,6 +42,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ImpositivoService()),
         ChangeNotifierProvider(create: (_) => CuentasCobrarService()),
         ChangeNotifierProvider(create: (_) => CuentasPagarService()),
+        ChangeNotifierProvider(create: (_) => GastosService()),
+        ChangeNotifierProvider(create: (_) => UsuariosService()),
       ],
       child: const MyApp(),
     ),

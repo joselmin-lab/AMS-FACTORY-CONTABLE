@@ -1,202 +1,136 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
 import 'package:ams_control_contable/core/constants/app_strings.dart';
-import 'package:ams_control_contable/models/usuario.dart';
+import 'package:ams_control_contable/services/usuarios_service.dart';
 import 'package:ams_control_contable/widgets/app_drawer.dart';
+import 'package:ams_control_contable/widgets/empty_state.dart';
 
-class UsuariosScreen extends StatelessWidget {
+class UsuariosScreen extends StatefulWidget {
   const UsuariosScreen({super.key});
 
-  // Sample data placeholder
-  static final List<Usuario> _sampleUsers = [
-    Usuario(
-      id: '1',
-      nombre: 'José',
-      apellido: 'Administrador',
-      email: 'admin@ams-factory.com',
-      rol: RolUsuario.admin,
-      activo: true,
-    ),
-    Usuario(
-      id: '2',
-      nombre: 'María',
-      apellido: 'Contadora',
-      email: 'contadora@ams-factory.com',
-      rol: RolUsuario.contador,
-      activo: true,
-    ),
-    Usuario(
-      id: '3',
-      nombre: 'Carlos',
-      apellido: 'Operario',
-      email: 'operario@ams-factory.com',
-      rol: RolUsuario.operario,
-      activo: true,
-    ),
-  ];
+  @override
+  State<UsuariosScreen> createState() => _UsuariosScreenState();
+}
+
+class _UsuariosScreenState extends State<UsuariosScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<UsuariosService>().fetchAdmins();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.usuarios),
+        title: const Text(AppStrings.usuarios, style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.usuariosColor,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_rounded),
-            onPressed: () {
-              // TODO: open create user dialog
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Función próximamente disponible')),
-              );
-            },
-            tooltip: 'Agregar usuario',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => context.read<UsuariosService>().fetchAdmins(),
           ),
         ],
       ),
       drawer: const AppDrawer(),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildStatsRow(),
-          const SizedBox(height: 16),
-          ..._sampleUsers.map((u) => _buildUserCard(context, u)),
-        ],
-      ),
-    );
-  }
+      body: Consumer<UsuariosService>(
+        builder: (context, service, _) {
+          if (service.isLoading) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.usuariosColor));
+          }
 
-  Widget _buildStatsRow() {
-    return Row(
-      children: [
-        _buildStatChip(
-            '${_sampleUsers.length}', 'Total', AppColors.usuariosColor),
-        const SizedBox(width: 12),
-        _buildStatChip(
-          '${_sampleUsers.where((u) => u.rol == RolUsuario.admin).length}',
-          'Admins',
-          AppColors.error,
-        ),
-        const SizedBox(width: 12),
-        _buildStatChip(
-          '${_sampleUsers.where((u) => u.activo).length}',
-          'Activos',
-          AppColors.success,
-        ),
-      ],
-    );
-  }
+          if (service.error != null) {
+            return Center(child: Text(service.error!, style: const TextStyle(color: AppColors.error)));
+          }
 
-  Widget _buildStatChip(String value, String label, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withAlpha(26),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withAlpha(77)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+          if (service.usuarios.isEmpty) {
+            return const EmptyState(
+              icon: Icons.admin_panel_settings_outlined,
+              message: 'No hay administradores registrados.',
+              actionLabel: '',
+            );
+          }
 
-  Widget _buildUserCard(BuildContext context, Usuario user) {
-    final Color roleColor = _getRoleColor(user.rol);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: roleColor.withAlpha(51),
-          child: Text(
-            (user.nombre?.isNotEmpty == true
-                    ? user.nombre![0]
-                    : user.email[0])
-                .toUpperCase(),
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: roleColor,
-            ),
-          ),
-        ),
-        title: Text(
-          user.nombreCompleto,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(user.email,
-            style: const TextStyle(fontSize: 12)),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: roleColor.withAlpha(26),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                user.rolLabel,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: roleColor,
-                  fontWeight: FontWeight.w600,
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: AppColors.usuariosColor.withAlpha(26),
+                child: Row(
+                  children: [
+                    const Icon(Icons.shield_rounded, color: AppColors.usuariosColor, size: 28),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Personal Autorizado', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.usuariosColor)),
+                          Text(
+                            'Estas personas tienen acceso total a la información contable y financiera.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: user.activo
-                    ? AppColors.success
-                    : AppColors.textSecondary,
+              Expanded(
+                child: RefreshIndicator(
+                  color: AppColors.usuariosColor,
+                  onRefresh: () => service.fetchAdmins(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: service.usuarios.length,
+                    itemBuilder: (context, index) {
+                      final usuario = service.usuarios[index];
+                      return Card(
+                        elevation: 1,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.usuariosColor.withAlpha(50),
+                            foregroundColor: AppColors.usuariosColor,
+                            child: Text(usuario.nombre.substring(0, 1).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          title: Text(usuario.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          
+                          // MOSTRAMOS SI ESTÁ ACTIVO EN VEZ DEL CORREO
+                          subtitle: Row(
+                            children: [
+                              Icon(
+                                usuario.activo ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                                size: 14, 
+                                color: usuario.activo ? AppColors.success : AppColors.error
+                              ),
+                              const SizedBox(width: 4),
+                              Text(usuario.activo ? 'Cuenta Activa' : 'Cuenta Inactiva', style: TextStyle(color: usuario.activo ? AppColors.success : AppColors.error)),
+                            ],
+                          ),
+
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.usuariosColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(usuario.rol, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        onTap: () {
-          // TODO: open user details
+            ],
+          );
         },
       ),
     );
-  }
-
-  Color _getRoleColor(RolUsuario rol) {
-    switch (rol) {
-      case RolUsuario.admin:
-        return AppColors.error;
-      case RolUsuario.contador:
-        return AppColors.impositivoColor;
-      case RolUsuario.operario:
-        return AppColors.comprasColor;
-      case RolUsuario.viewer:
-        return AppColors.textSecondary;
-    }
   }
 }

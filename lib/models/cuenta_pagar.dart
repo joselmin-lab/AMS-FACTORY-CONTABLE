@@ -4,6 +4,7 @@ class CuentaPagar {
   final String? id;
   final String proveedor;
   final String? compraId;
+  final String? gastoId; // <--- NUEVO
   final double montoTotal;
   final double montoPagado;
   final EstadoCuenta estado;
@@ -15,6 +16,7 @@ class CuentaPagar {
     this.id,
     required this.proveedor,
     this.compraId,
+    this.gastoId, // <--- NUEVO
     required this.montoTotal,
     this.montoPagado = 0,
     this.estado = EstadoCuenta.pendiente,
@@ -27,45 +29,31 @@ class CuentaPagar {
 
   String get estadoLabel {
     switch (estado) {
-      case EstadoCuenta.pendiente:
-        return 'Pendiente';
-      case EstadoCuenta.parcial:
-        return 'Pago Parcial';
-      case EstadoCuenta.pagado:
-        return 'Pagado';
-      case EstadoCuenta.vencido:
-        return 'Vencido';
+      case EstadoCuenta.pendiente: return 'Pendiente';
+      case EstadoCuenta.parcial: return 'Pago Parcial';
+      case EstadoCuenta.pagado: return 'Pagado';
+      case EstadoCuenta.vencido: return 'Vencido';
     }
   }
 
   factory CuentaPagar.fromJson(Map<String, dynamic> json) {
     EstadoCuenta estadoCuenta;
     switch (json['estado']?.toString()) {
-      case 'parcial':
-        estadoCuenta = EstadoCuenta.parcial;
-        break;
-      case 'pagado':
-        estadoCuenta = EstadoCuenta.pagado;
-        break;
-      case 'vencido':
-        estadoCuenta = EstadoCuenta.vencido;
-        break;
-      default:
-        estadoCuenta = EstadoCuenta.pendiente;
+      case 'parcial': estadoCuenta = EstadoCuenta.parcial; break;
+      case 'pagado': estadoCuenta = EstadoCuenta.pagado; break;
+      case 'vencido': estadoCuenta = EstadoCuenta.vencido; break;
+      default: estadoCuenta = EstadoCuenta.pendiente;
     }
     return CuentaPagar(
       id: json['id']?.toString(),
       proveedor: json['proveedor']?.toString() ?? '',
       compraId: json['compra_id']?.toString(),
+      gastoId: json['gasto_id']?.toString(), // <--- NUEVO
       montoTotal: (json['monto_total'] as num?)?.toDouble() ?? 0,
       montoPagado: (json['monto_pagado'] as num?)?.toDouble() ?? 0,
       estado: estadoCuenta,
-      fechaEmision: json['fecha_emision'] != null
-          ? DateTime.parse(json['fecha_emision'].toString())
-          : DateTime.now(),
-      fechaVencimiento: json['fecha_vencimiento'] != null
-          ? DateTime.parse(json['fecha_vencimiento'].toString())
-          : null,
+      fechaEmision: json['fecha_emision'] != null ? DateTime.parse(json['fecha_emision'].toString()) : DateTime.now(),
+      fechaVencimiento: json['fecha_vencimiento'] != null ? DateTime.parse(json['fecha_vencimiento'].toString()) : null,
       notas: json['notas']?.toString(),
     );
   }
@@ -74,6 +62,7 @@ class CuentaPagar {
         if (id != null) 'id': id,
         'proveedor': proveedor,
         'compra_id': compraId,
+        'gasto_id': gastoId, // <--- NUEVO
         'monto_total': montoTotal,
         'monto_pagado': montoPagado,
         'estado': estado.name,
