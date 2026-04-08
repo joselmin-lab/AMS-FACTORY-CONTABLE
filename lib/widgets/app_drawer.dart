@@ -1,0 +1,236 @@
+import 'package:flutter/material.dart';
+import 'package:ams_control_contable/core/constants/app_colors.dart';
+import 'package:ams_control_contable/core/constants/app_strings.dart';
+import 'package:ams_control_contable/core/router/app_router.dart';
+
+class AppDrawer extends StatelessWidget {
+  const AppDrawer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final String currentRoute =
+        ModalRoute.of(context)?.settings.name ?? AppRoutes.dashboard;
+
+    return Drawer(
+      child: Column(
+        children: [
+          _buildHeader(context),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.dashboard_rounded,
+                  label: AppStrings.dashboard,
+                  route: AppRoutes.dashboard,
+                  currentRoute: currentRoute,
+                  color: AppColors.primary,
+                ),
+                const Divider(height: 1),
+                _buildSectionHeader('Movimientos'),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.shopping_cart_rounded,
+                  label: AppStrings.compras,
+                  route: AppRoutes.compras,
+                  currentRoute: currentRoute,
+                  color: AppColors.comprasColor,
+                ),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.point_of_sale_rounded,
+                  label: AppStrings.ventas,
+                  route: AppRoutes.ventas,
+                  currentRoute: currentRoute,
+                  color: AppColors.ventasColor,
+                ),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.local_shipping_rounded,
+                  label: AppStrings.importaciones,
+                  route: AppRoutes.importaciones,
+                  currentRoute: currentRoute,
+                  color: AppColors.importacionesColor,
+                ),
+                const Divider(height: 1),
+                _buildSectionHeader('Finanzas'),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.account_balance_rounded,
+                  label: AppStrings.impositivo,
+                  route: AppRoutes.impositivo,
+                  currentRoute: currentRoute,
+                  color: AppColors.impositivoColor,
+                ),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.money_off_rounded,
+                  label: AppStrings.gastos,
+                  route: AppRoutes.gastos,
+                  currentRoute: currentRoute,
+                  color: AppColors.gastosColor,
+                ),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.arrow_circle_down_rounded,
+                  label: AppStrings.cuentasPorCobrar,
+                  route: AppRoutes.cobrar,
+                  currentRoute: currentRoute,
+                  color: AppColors.cobrarColor,
+                ),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.arrow_circle_up_rounded,
+                  label: AppStrings.cuentasPorPagar,
+                  route: AppRoutes.pagar,
+                  currentRoute: currentRoute,
+                  color: AppColors.pagarColor,
+                ),
+                const Divider(height: 1),
+                _buildSectionHeader('Administración'),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.people_rounded,
+                  label: AppStrings.usuarios,
+                  route: AppRoutes.usuarios,
+                  currentRoute: currentRoute,
+                  color: AppColors.usuariosColor,
+                ),
+              ],
+            ),
+          ),
+          _buildFooter(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return DrawerHeader(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primaryDark, AppColors.primaryLight],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(51),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            AppStrings.appName,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            AppStrings.appSubtitle,
+            style: TextStyle(
+              color: Colors.white.withAlpha(204),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required String route,
+    required String currentRoute,
+    required Color color,
+  }) {
+    final bool isSelected = currentRoute == route;
+
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? color : AppColors.textSecondary,
+        size: 22,
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight:
+              isSelected ? FontWeight.w600 : FontWeight.normal,
+          color: isSelected ? color : AppColors.textPrimary,
+        ),
+      ),
+      selected: isSelected,
+      selectedTileColor: color.withAlpha(26),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      onTap: () {
+        Navigator.pop(context);
+        if (!isSelected) {
+          Navigator.pushReplacementNamed(context, route);
+        }
+      },
+    );
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Colors.grey[200]!),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.factory_rounded,
+              size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Text(
+            'AMS Factory v1.0',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
