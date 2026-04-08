@@ -103,11 +103,7 @@ class _VentasScreenState extends State<VentasScreen> {
                         color: AppColors.ventasColor,
                         badge: venta.facturado ? 'Facturado' : null,
                         badgeColor: AppColors.success,
-                        onEdit: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.crearVenta,
-                          arguments: {'id': venta.id},
-                        ),
+                        onEdit: null,
                         onDelete: () async {
                           final confirm =
                               await showDeleteConfirmDialog(context);
