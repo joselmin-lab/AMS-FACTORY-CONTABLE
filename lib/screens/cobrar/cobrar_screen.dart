@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
 import 'package:ams_control_contable/core/constants/app_strings.dart';
 import 'package:ams_control_contable/models/cuenta_cobrar.dart';
+import 'package:ams_control_contable/services/cuentas_cobrar_service.dart';
 import 'package:ams_control_contable/widgets/app_drawer.dart';
-import 'package:ams_control_contable/widgets/dialogs.dart';
 import 'package:ams_control_contable/widgets/empty_state.dart';
 
 class CobrarScreen extends StatefulWidget {
@@ -15,87 +16,139 @@ class CobrarScreen extends StatefulWidget {
 }
 
 class _CobrarScreenState extends State<CobrarScreen> {
-  final _currencyFormat =
-      NumberFormat.currency(locale: 'es_BO', symbol: 'Bs.', decimalDigits: 2);
+  final _currencyFormat = NumberFormat.currency(locale: 'es_BO', symbol: 'Bs.', decimalDigits: 2);
   final _dateFormat = DateFormat('dd/MM/yyyy');
 
-  // Placeholder local state (TODO: replace with CuentasCobrarService)
-  final List<CuentaCobrar> _cuentas = [];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CuentasCobrarService>().fetchCuentas();
+    });
+  }
 
-  double get _totalPendiente => _cuentas
-      .where((c) => c.estado != EstadoCuenta.pagado)
-      .fold(0, (s, c) => s + c.saldoPendiente);
+    void _mostrarDialogoPago(CuentaCobrar cuenta) {
+    final _montoCtrl = TextEditingController();
+    final _formKey = GlobalKey<FormState>();
+    String _metodoPago = 'Efectivo'; // Valor por defecto
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder( // StatefulBuilder para actualizar el desplegable dentro del diálogo
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: Text('Registrar Pago - ${cuenta.cliente}'),
+            content: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Deuda total: ${_currencyFormat.format(cuenta.montoTotal)}'),
+                  Text('Saldo pendiente: ${_currencyFormat.format(cuenta.saldoPendiente)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _montoCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Monto a abonar (Bs.)'),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Requerido';
+                      final val = double.tryParse(v);
+                      if (val == null || val <= 0) return 'Monto inválido';
+                      if (val > cuenta.saldoPendiente) return 'No puede pagar más del saldo';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _metodoPago,
+                    decoration: const InputDecoration(labelText: 'Método de Pago'),
+                    items: ['Efectivo', 'QR', 'Transferencia', 'Tarjeta']
+                        .map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                    onChanged: (val) => setStateDialog(() => _metodoPago = val!),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.cobrarColor, foregroundColor: Colors.white),
+                onPressed: () async {
+                  if (_formKey.currentState!.validate()) {
+                    final monto = double.parse(_montoCtrl.text);
+                    Navigator.pop(ctx);
+                    
+                    // Ahora mandamos el método de pago también
+                    final ok = await context.read<CuentasCobrarService>().registrarPago(cuenta.id!, monto, _metodoPago);
+                    
+                    if (ok && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pago registrado correctamente. Dinero ingresado a caja.'), backgroundColor: AppColors.success));
+                    }
+                  }
+                },
+                child: const Text('Registrar Pago'),
+              ),
+            ],
+          );
+        }
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.cuentasPorCobrar),
+        title: const Text(AppStrings.cuentasPorCobrar, style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.cobrarColor,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(() {}),
-            tooltip: 'Actualizar',
-          ),
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: () => context.read<CuentasCobrarService>().fetchCuentas()),
         ],
       ),
       drawer: const AppDrawer(),
-      body: _cuentas.isEmpty
-          ? EmptyState(
+      body: Consumer<CuentasCobrarService>(
+        builder: (context, service, _) {
+          if (service.isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.cobrarColor));
+          
+          if (service.cuentas.isEmpty) {
+            return const EmptyState(
               icon: Icons.arrow_circle_down_outlined,
-              message:
-                  'No hay cuentas por cobrar registradas.',
-              onAction: _showCrearCuentaDialog,
-              actionLabel: 'Agregar cuenta',
-            )
-          : Column(
-              children: [
-                _buildSummaryBanner(),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _cuentas.length,
-                    itemBuilder: (context, index) {
-                      final cuenta = _cuentas[index];
-                      return _buildCuentaCard(cuenta);
-                    },
-                  ),
+              message: 'No hay cuentas por cobrar.\nLas ventas "a Crédito" aparecerán aquí.',
+              actionLabel: '',
+            );
+          }
+
+          return Column(
+            children: [
+              _buildSummaryBanner(service),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: service.cuentas.length,
+                  itemBuilder: (context, index) {
+                    final cuenta = service.cuentas[index];
+                    return _buildCuentaCard(cuenta);
+                  },
                 ),
-              ],
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCrearCuentaDialog,
-        backgroundColor: AppColors.cobrarColor,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva Cuenta'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildSummaryBanner() {
-    final pendientes =
-        _cuentas.where((c) => c.estado != EstadoCuenta.pagado).length;
+  Widget _buildSummaryBanner(CuentasCobrarService service) {
+    final pendientes = service.cuentas.where((c) => c.estado != EstadoCuenta.pagado).length;
     return Container(
       padding: const EdgeInsets.all(16),
       color: AppColors.cobrarColor.withAlpha(26),
       child: Row(
         children: [
-          Expanded(
-            child: _buildSummaryItem(
-              'Pendiente Total',
-              _currencyFormat.format(_totalPendiente),
-              AppColors.cobrarColor,
-            ),
-          ),
+          Expanded(child: _buildSummaryItem('Pendiente Total', _currencyFormat.format(service.totalPendiente), AppColors.cobrarColor)),
           const SizedBox(width: 16),
-          Expanded(
-            child: _buildSummaryItem(
-              'Cuentas Activas',
-              '$pendientes',
-              AppColors.warning,
-            ),
-          ),
+          Expanded(child: _buildSummaryItem('Cuentas Activas', '$pendientes', AppColors.warning)),
         ],
       ),
     );
@@ -105,14 +158,8 @@ class _CobrarScreenState extends State<CobrarScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.textSecondary)),
-        Text(
-          value,
-          style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.bold, color: color),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
@@ -128,110 +175,48 @@ class _CobrarScreenState extends State<CobrarScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(
-                    cuenta.cliente,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
+                Expanded(child: Text(cuenta.cliente, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: estadoColor.withAlpha(26),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    cuenta.estadoLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: estadoColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: estadoColor.withAlpha(26), borderRadius: BorderRadius.circular(12), border: Border.all(color: estadoColor)),
+                  child: Text(cuenta.estadoLabel, style: TextStyle(fontSize: 12, color: estadoColor, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Monto total:',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary)),
-                    Text(
-                      _currencyFormat.format(cuenta.montoTotal),
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
+                    const Text('Total Deuda', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text(_currencyFormat.format(cuenta.montoTotal), style: const TextStyle(fontWeight: FontWeight.w500)),
                   ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('Saldo pendiente:',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary)),
-                    Text(
-                      _currencyFormat.format(cuenta.saldoPendiente),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: AppColors.cobrarColor,
-                      ),
-                    ),
+                    const Text('Saldo Pendiente', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text(_currencyFormat.format(cuenta.saldoPendiente), style: TextStyle(fontWeight: FontWeight.bold, color: cuenta.saldoPendiente > 0 ? AppColors.error : AppColors.success)),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Emitido: ${_dateFormat.format(cuenta.fechaEmision)}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
-                ),
-                if (cuenta.fechaVencimiento != null)
-                  Text(
-                    'Vence: ${_dateFormat.format(cuenta.fechaVencimiento!)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cuenta.estado == EstadoCuenta.vencido
-                          ? AppColors.error
-                          : AppColors.textSecondary,
-                    ),
+                Text('Emitido: ${_dateFormat.format(cuenta.fechaEmision)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                if (cuenta.estado != EstadoCuenta.pagado)
+                  TextButton.icon(
+                    onPressed: () => _mostrarDialogoPago(cuenta),
+                    icon: const Icon(Icons.payments_outlined, size: 18),
+                    label: const Text('Registrar Pago'),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.cobrarColor, padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
                   ),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () {},
-                      child: const Icon(Icons.edit_rounded,
-                          size: 18, color: AppColors.primary),
-                    ),
-                    const SizedBox(width: 12),
-                    InkWell(
-                      onTap: () async {
-                        final confirm =
-                            await showDeleteConfirmDialog(context);
-                        if (confirm) {
-                          setState(() => _cuentas.remove(cuenta));
-                        }
-                      },
-                      child: const Icon(Icons.delete_rounded,
-                          size: 18, color: AppColors.error),
-                    ),
-                  ],
-                ),
               ],
             ),
           ],
@@ -242,75 +227,10 @@ class _CobrarScreenState extends State<CobrarScreen> {
 
   Color _estadoColor(EstadoCuenta estado) {
     switch (estado) {
-      case EstadoCuenta.pendiente:
-        return AppColors.warning;
-      case EstadoCuenta.parcial:
-        return AppColors.accent;
-      case EstadoCuenta.pagado:
-        return AppColors.success;
-      case EstadoCuenta.vencido:
-        return AppColors.error;
+      case EstadoCuenta.pendiente: return AppColors.error;
+      case EstadoCuenta.parcial: return AppColors.warning;
+      case EstadoCuenta.pagado: return AppColors.success;
+      case EstadoCuenta.vencido: return AppColors.error;
     }
-  }
-
-  void _showCrearCuentaDialog() {
-    final clienteController = TextEditingController();
-    final montoController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nueva Cuenta por Cobrar'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: clienteController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.cliente,
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: montoController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.total,
-                prefixIcon: Icon(Icons.attach_money_rounded),
-                prefixText: 'Bs. ',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(AppStrings.cancelar),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (clienteController.text.isNotEmpty &&
-                  montoController.text.isNotEmpty) {
-                setState(() {
-                  _cuentas.add(CuentaCobrar(
-                    cliente: clienteController.text,
-                    montoTotal:
-                        double.tryParse(montoController.text) ?? 0,
-                    fechaEmision: DateTime.now(),
-                  ));
-                });
-                Navigator.pop(context);
-                showSuccessSnackbar(
-                    context, AppStrings.registroGuardado);
-              }
-            },
-            child: const Text(AppStrings.guardar),
-          ),
-        ],
-      ),
-    );
   }
 }

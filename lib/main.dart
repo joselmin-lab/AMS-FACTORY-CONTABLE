@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart'; // IMPORTANTE: Agregado para inicializar idiomas
 import 'package:ams_control_contable/services/salidas_service.dart';
+import 'package:ams_control_contable/services/cuentas_cobrar_service.dart';
+import 'package:ams_control_contable/services/cuentas_pagar_service.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -9,6 +11,8 @@ import 'services/supabase_service.dart';
 import 'services/compras_service.dart';
 import 'services/ventas_service.dart';
 import 'services/importaciones_service.dart';
+import 'services/impositivo_service.dart';
+
 
 
 const _supabaseUrl = 'https://tjqjfncersdbarscfdph.supabase.co'; 
@@ -33,6 +37,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => VentasService()),
         ChangeNotifierProvider(create: (_) => ImportacionesService()),
         ChangeNotifierProvider(create: (_) => SalidasService()),
+        ChangeNotifierProvider(create: (_) => ImpositivoService()),
+        ChangeNotifierProvider(create: (_) => CuentasCobrarService()),
+        ChangeNotifierProvider(create: (_) => CuentasPagarService()),
       ],
       child: const MyApp(),
     ),
