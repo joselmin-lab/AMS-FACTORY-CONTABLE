@@ -18,7 +18,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final _currencyFormat =
-      NumberFormat.currency(locale: 'es_BO', symbol: 'Bs.', decimalDigits: 2);
+      NumberFormat.currency(locale: AppStrings.appLocale, symbol: AppStrings.currencySymbol, decimalDigits: 2);
 
   @override
   void initState() {
@@ -121,7 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  DateFormat('EEEE, d MMMM y', 'es').format(DateTime.now()),
+                  DateFormat('EEEE, d MMMM y', AppStrings.appLocale).format(DateTime.now()),
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,

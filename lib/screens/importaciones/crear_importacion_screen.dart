@@ -25,7 +25,7 @@ class _CrearImportacionScreenState extends State<CrearImportacionScreen> {
 
   // Other fields
   final _porcentajeGAController =
-      TextEditingController(text: '');
+      TextEditingController(text: '0');
   final _porcentajeIVAController =
       TextEditingController(text: '13');
   final _tipoCambioController =

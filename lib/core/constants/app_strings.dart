@@ -1,6 +1,8 @@
 class AppStrings {
   AppStrings._();
 
+  static const String appLocale = 'es';
+  static const String currencySymbol = 'Bs.';
   static const String appName = 'AMS Control Contable';
   static const String appSubtitle = 'Fábrica de Amortiguadores';
 

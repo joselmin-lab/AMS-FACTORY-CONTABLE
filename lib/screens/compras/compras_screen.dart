@@ -137,6 +137,7 @@ class _ComprasScreenState extends State<ComprasScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () =>
             Navigator.pushNamed(context, AppRoutes.crearCompra),
+        backgroundColor: AppColors.comprasColor,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Crear Compra'),
       ),
