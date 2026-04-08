@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
-import 'package:ams_control_contable/core/constants/app_strings.dart';
 import 'package:ams_control_contable/models/compra.dart';
 import 'package:ams_control_contable/services/compras_service.dart';
-import 'package:ams_control_contable/widgets/dialogs.dart';
+import 'package:ams_control_contable/services/supabase_service.dart';
 
 class CrearCompraScreen extends StatefulWidget {
-  final String? compraId;
-
-  const CrearCompraScreen({super.key, this.compraId});
+  const CrearCompraScreen({super.key});
 
   @override
   State<CrearCompraScreen> createState() => _CrearCompraScreenState();
@@ -18,68 +14,74 @@ class CrearCompraScreen extends StatefulWidget {
 
 class _CrearCompraScreenState extends State<CrearCompraScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  final _parteController = TextEditingController();
-  final _cantidadController = TextEditingController();
-  final _precioController = TextEditingController();
-  final _proveedorController = TextEditingController();
-  final _notasController = TextEditingController();
-
+  
+  Map<String, dynamic>? _selectedItem; // El item de inventario seleccionado
+  final _cantidadCtrl = TextEditingController();
+  final _precioCtrl = TextEditingController();
+  final _proveedorCtrl = TextEditingController();
+  
   bool _facturado = false;
-  String _metodoPago = AppStrings.pagoEfectivo;
-
-  bool get _isEditing => widget.compraId != null;
-
-  static const List<String> _metodosPago = [
-    AppStrings.pagoQR,
-    AppStrings.pagoEfectivo,
-    AppStrings.pagoTarjeta,
-    AppStrings.pagoCredito,
+  String _metodoPago = 'Transferencia / QR';
+  
+  final List<String> _metodosPago = [
+    'Transferencia / QR',
+    'Efectivo',
+    'Tarjeta',
+    'Crédito',
   ];
 
   @override
   void dispose() {
-    _parteController.dispose();
-    _cantidadController.dispose();
-    _precioController.dispose();
-    _proveedorController.dispose();
-    _notasController.dispose();
+    _cantidadCtrl.dispose();
+    _precioCtrl.dispose();
+    _proveedorCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final compra = Compra(
-      id: widget.compraId,
-      parteNombre: _parteController.text.trim(),
-      cantidad: double.parse(_cantidadController.text.trim()),
-      precio: double.parse(_precioController.text.trim()),
-      facturado: _facturado,
-      proveedor: _proveedorController.text.trim(),
-      metodoPago: _metodoPago,
-      fecha: DateTime.now(),
-      notas: _notasController.text.trim().isEmpty
-          ? null
-          : _notasController.text.trim(),
-    );
-
-    final service = context.read<ComprasService>();
-    bool success;
-
-    if (_isEditing) {
-      success = await service.updateCompra(compra);
-    } else {
-      success = await service.createCompra(compra);
-    }
-
-    if (mounted) {
-      if (success) {
-        showSuccessSnackbar(context, AppStrings.registroGuardado);
-        Navigator.pop(context);
-      } else {
-        showErrorSnackbar(context, service.error ?? 'Error al guardar');
+  void _guardarCompra() {
+    if (_formKey.currentState!.validate()) {
+      if (_selectedItem == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Debe seleccionar una parte o insumo válido del buscador')),
+        );
+        return;
       }
+
+      final nuevaCompra = Compra(
+        // Generamos un ID temporal. Luego Supabase le asignará un UUID real si es necesario
+        id: null, 
+        parteId: _selectedItem!['id'].toString(),
+        parteNombre: _selectedItem!['nombre'] ?? 'Sin nombre',
+        cantidad: double.parse(_cantidadCtrl.text),
+        precio: double.parse(_precioCtrl.text),
+        facturado: _facturado,
+        proveedor: _proveedorCtrl.text,
+        metodoPago: _metodoPago,
+        fecha: DateTime.now(),
+      );
+
+      // AQUI ESTA LA CORRECCIÓN: Se usa createCompra en lugar de addCompra
+      context.read<ComprasService>().createCompra(nuevaCompra);
+      Navigator.pop(context);
+    }
+  }
+
+  // Función que busca en Supabase las partes/insumos que se compran
+  Future<List<Map<String, dynamic>>> _buscarEnInventario(String query) async {
+    if (query.isEmpty) return [];
+
+    try {
+      final response = await SupabaseService.client
+          .from('inventario')
+          .select('id, codigo, nombre, categoria, origen, unidad')
+          .or('origen.eq.COMPRA,categoria.eq.INSUMO,categoria.eq.MATERIA_PRIMA') 
+          .ilike('nombre', '%$query%')
+          .limit(10);
+          
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error buscando inventario: $e');
+      return [];
     }
   }
 
@@ -87,233 +89,121 @@ class _CrearCompraScreenState extends State<CrearCompraScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Editar Compra' : 'Nueva Compra'),
+        title: const Text('Nueva Compra'),
         backgroundColor: AppColors.comprasColor,
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildSectionHeader('Detalle del Producto'),
-            const SizedBox(height: 12),
-            _buildSearchField(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _buildCantidadField()),
-                const SizedBox(width: 12),
-                Expanded(child: _buildPrecioField()),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildSectionHeader('Información de Compra'),
-            const SizedBox(height: 12),
-            _buildProveedorField(),
-            const SizedBox(height: 16),
-            _buildMetodoPagoField(),
-            const SizedBox(height: 16),
-            _buildFacturadoField(),
-            const SizedBox(height: 16),
-            _buildNotasField(),
-            const SizedBox(height: 24),
-            _buildTotalPreview(),
-            const SizedBox(height: 24),
-            _buildSubmitButton(),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-    );
-  }
-
-  Widget _buildSearchField() {
-    return TextFormField(
-      controller: _parteController,
-      decoration: InputDecoration(
-        labelText: 'Parte / Insumo (COMPRA)',
-        hintText: 'Buscar parte o insumo...',
-        prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.clear),
-          onPressed: () => _parteController.clear(),
-        ),
-      ),
-      validator: (v) =>
-          v == null || v.isEmpty ? AppStrings.campoRequerido : null,
-    );
-  }
-
-  Widget _buildCantidadField() {
-    return TextFormField(
-      controller: _cantidadController,
-      decoration: const InputDecoration(
-        labelText: AppStrings.cantidad,
-        prefixIcon: Icon(Icons.numbers_rounded),
-      ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,4}')),
-      ],
-      validator: (v) {
-        if (v == null || v.isEmpty) return AppStrings.campoRequerido;
-        if (double.tryParse(v) == null) return AppStrings.valorInvalido;
-        return null;
-      },
-    );
-  }
-
-  Widget _buildPrecioField() {
-    return TextFormField(
-      controller: _precioController,
-      decoration: const InputDecoration(
-        labelText: AppStrings.precio,
-        prefixIcon: Icon(Icons.attach_money_rounded),
-        prefixText: 'Bs. ',
-      ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-      ],
-      validator: (v) {
-        if (v == null || v.isEmpty) return AppStrings.campoRequerido;
-        if (double.tryParse(v) == null) return AppStrings.valorInvalido;
-        return null;
-      },
-    );
-  }
-
-  Widget _buildProveedorField() {
-    return TextFormField(
-      controller: _proveedorController,
-      decoration: const InputDecoration(
-        labelText: AppStrings.proveedor,
-        prefixIcon: Icon(Icons.business_rounded),
-      ),
-      validator: (v) =>
-          v == null || v.isEmpty ? AppStrings.campoRequerido : null,
-    );
-  }
-
-  Widget _buildMetodoPagoField() {
-    return DropdownButtonFormField<String>(
-      value: _metodoPago,
-      decoration: const InputDecoration(
-        labelText: AppStrings.metodoPago,
-        prefixIcon: Icon(Icons.payment_rounded),
-      ),
-      items: _metodosPago
-          .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-          .toList(),
-      onChanged: (v) => setState(() => _metodoPago = v!),
-    );
-  }
-
-  Widget _buildFacturadoField() {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: CheckboxListTile(
-        title: const Text(
-          AppStrings.facturado,
-          style: TextStyle(fontWeight: FontWeight.w500),
-        ),
-        subtitle: const Text('Marcar si la compra tiene factura'),
-        value: _facturado,
-        onChanged: (v) => setState(() => _facturado = v ?? false),
-        activeColor: AppColors.comprasColor,
-        secondary: Icon(
-          _facturado
-              ? Icons.receipt_long_rounded
-              : Icons.receipt_outlined,
-          color: AppColors.comprasColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotasField() {
-    return TextFormField(
-      controller: _notasController,
-      decoration: const InputDecoration(
-        labelText: AppStrings.notas,
-        prefixIcon: Icon(Icons.note_rounded),
-        hintText: 'Observaciones adicionales (opcional)',
-      ),
-      maxLines: 2,
-    );
-  }
-
-  Widget _buildTotalPreview() {
-    return ListenableBuilder(
-      listenable: Listenable.merge([_cantidadController, _precioController]),
-      builder: (context, _) {
-        final qty = double.tryParse(_cantidadController.text) ?? 0;
-        final price = double.tryParse(_precioController.text) ?? 0;
-        final t = qty * price;
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.comprasColor.withAlpha(13),
-            borderRadius: BorderRadius.circular(12),
-            border:
-                Border.all(color: AppColors.comprasColor.withAlpha(77)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                AppStrings.total,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
+              const Text('Parte o Insumo (Buscar en Inventario)', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              
+              // BUSCADOR CON AUTOCOMPLETAR
+              Autocomplete<Map<String, dynamic>>(
+                displayStringForOption: (item) => '[${item['codigo']}] ${item['nombre']}',
+                optionsBuilder: (TextEditingValue textEditingValue) async {
+                  if (textEditingValue.text.length < 2) return const Iterable<Map<String, dynamic>>.empty();
+                  return await _buscarEnInventario(textEditingValue.text);
+                },
+                onSelected: (Map<String, dynamic> selection) {
+                  setState(() {
+                    _selectedItem = selection;
+                  });
+                },
+                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      hintText: 'Escribe el nombre del ítem...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    validator: (value) => value == null || value.isEmpty ? 'Requerido' : null,
+                  );
+                },
               ),
-              Text(
-                'Bs. ${t.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: AppColors.comprasColor,
+              
+              if (_selectedItem != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    'Categoría: ${_selectedItem!['categoria']}',
+                    style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cantidadCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Cantidad',
+                        // Muestra la unidad dinámicamente si ya hay un item seleccionado
+                        suffixText: _selectedItem != null ? _selectedItem!['unidad'] : '',
+                      ),
+                      validator: (value) => value == null || value.isEmpty ? 'Requerido' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _precioCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Precio Unitario',
+                        prefixText: 'Bs. ',
+                      ),
+                      validator: (value) => value == null || value.isEmpty ? 'Requerido' : null,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _proveedorCtrl,
+                decoration: const InputDecoration(labelText: 'Proveedor'),
+                validator: (value) => value == null || value.isEmpty ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 16),
+
+              DropdownButtonFormField<String>(
+                value: _metodoPago,
+                decoration: const InputDecoration(labelText: 'Método de Pago'),
+                items: _metodosPago.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                onChanged: (val) => setState(() => _metodoPago = val!),
+              ),
+              const SizedBox(height: 16),
+
+              CheckboxListTile(
+                title: const Text('¿Es facturado?'),
+                value: _facturado,
+                onChanged: (val) => setState(() => _facturado = val ?? false),
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.comprasColor,
+              ),
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _guardarCompra,
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.comprasColor),
+                  child: const Text('Guardar Compra', style: TextStyle(fontSize: 16)),
                 ),
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return Consumer<ComprasService>(
-      builder: (context, service, _) {
-        return ElevatedButton.icon(
-          onPressed: service.isLoading ? null : _submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.comprasColor,
-            minimumSize: const Size(double.infinity, 48),
-          ),
-          icon: service.isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.save_rounded),
-          label: Text(_isEditing ? 'Actualizar Compra' : 'Guardar Compra'),
-        );
-      },
+        ),
+      ),
     );
   }
 }

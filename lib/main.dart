@@ -1,51 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ams_control_contable/core/router/app_router.dart';
-import 'package:ams_control_contable/core/theme/app_theme.dart';
-import 'package:ams_control_contable/services/compras_service.dart';
-import 'package:ams_control_contable/services/importaciones_service.dart';
-import 'package:ams_control_contable/services/ventas_service.dart';
+import 'package:intl/date_symbol_data_local.dart'; // IMPORTANTE: Agregado para inicializar idiomas
 
-// ---------------------------------------------------------------------------
-// Supabase configuration
-// Replace these values with your actual Supabase project URL and anon key.
-// For production, load these from environment variables or a .env file and
-// never commit secrets to source control.
-// ---------------------------------------------------------------------------
-const String _supabaseUrl = 'https://YOUR_PROJECT.supabase.co';
-const String _supabaseAnonKey = 'YOUR_ANON_KEY';
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
+import 'services/supabase_service.dart';
+import 'services/compras_service.dart';
+import 'services/ventas_service.dart';
+import 'services/importaciones_service.dart';
 
-Future<void> main() async {
+const _supabaseUrl = 'https://tjqjfncersdbarscfdph.supabase.co'; 
+const _supabaseAnonKey = 'sb_publishable_OM4Px73jt62TTrADqlXFGQ_swS6zV7c';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // INICIALIZAR INTL PARA LAS FECHAS Y MONEDAS EN BOLIVIA
+  await initializeDateFormatting('es_BO', null);
+  
+  // Inicializar Supabase
+  await SupabaseService.initialize(
+    supabaseUrl: _supabaseUrl,
+    supabaseAnonKey: _supabaseAnonKey,
+  );
 
-  // Uncomment the following block once you have your Supabase credentials:
-  //
-  // await SupabaseService.initialize(
-  //   supabaseUrl: _supabaseUrl,
-  //   supabaseAnonKey: _supabaseAnonKey,
-  // );
-
-  runApp(const AmsControlContableApp());
-}
-
-class AmsControlContableApp extends StatelessWidget {
-  const AmsControlContableApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
+  runApp(
+    MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ComprasService()),
         ChangeNotifierProvider(create: (_) => VentasService()),
         ChangeNotifierProvider(create: (_) => ImportacionesService()),
       ],
-      child: MaterialApp(
-        title: 'AMS Control Contable',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        initialRoute: AppRoutes.dashboard,
-        onGenerateRoute: AppRouter.generateRoute,
-      ),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'AMS Control Contable',
+      theme: AppTheme.lightTheme,
+      initialRoute: SupabaseService.isAuthenticated ? AppRoutes.dashboard : AppRoutes.login,
+      onGenerateRoute: AppRouter.generateRoute,
+      debugShowCheckedModeBanner: false,
     );
   }
 }

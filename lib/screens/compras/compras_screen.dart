@@ -103,11 +103,7 @@ class _ComprasScreenState extends State<ComprasScreen> {
                         color: AppColors.comprasColor,
                         badge: compra.facturado ? 'Facturado' : null,
                         badgeColor: AppColors.success,
-                        onEdit: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.crearCompra,
-                          arguments: {'id': compra.id},
-                        ),
+                        onEdit: null,
                         onDelete: () async {
                           final confirm =
                               await showDeleteConfirmDialog(context);
