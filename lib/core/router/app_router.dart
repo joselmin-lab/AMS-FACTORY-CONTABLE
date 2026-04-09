@@ -8,6 +8,7 @@ import '../../screens/ventas/ventas_screen.dart';
 import '../../screens/ventas/crear_venta_screen.dart';
 import '../../screens/importaciones/importaciones_screen.dart';
 import '../../screens/importaciones/crear_importacion_screen.dart';
+import '../../screens/importaciones/detalle_carpeta_screen.dart'; // <--- IMPORTANTE
 import '../../screens/impositivo/impositivo_screen.dart';
 import '../../screens/gastos/gastos_screen.dart';
 import '../../screens/cobrar/cobrar_screen.dart';
@@ -27,6 +28,7 @@ class AppRoutes {
   static const String crearVenta = '/ventas/crear';
   static const String importaciones = '/importaciones';
   static const String crearImportacion = '/importaciones/crear';
+  static const String detalleImportacion = '/importaciones/detalle'; // <--- NUEVA RUTA
   static const String impositivo = '/impositivo';
   static const String gastos = '/gastos';
   static const String salidas = '/salidas';
@@ -56,7 +58,18 @@ class AppRouter {
       case AppRoutes.importaciones:
         return MaterialPageRoute(builder: (_) => const ImportacionesScreen(), settings: settings);
       case AppRoutes.crearImportacion:
-        return MaterialPageRoute(builder: (_) => const CrearImportacionScreen(), settings: settings);
+        // Aquí pasamos el ID si es que venía como argumento (ahora abriremos la pantalla Detalles)
+        final args = settings.arguments;
+        final carpetaId = args is String ? args : null;
+        
+        if (carpetaId != null) {
+          // Si hay ID, abrimos el Detalle
+          return MaterialPageRoute(builder: (_) => DetalleCarpetaScreen(carpetaId: carpetaId), settings: settings);
+        } else {
+          // Si NO hay ID, abrimos el formulario de Creación
+          return MaterialPageRoute(builder: (_) => const CrearImportacionScreen(), settings: settings);
+        }
+
       case AppRoutes.impositivo:
         return MaterialPageRoute(builder: (_) => const ImpositivoScreen(), settings: settings);
       case AppRoutes.gastos:

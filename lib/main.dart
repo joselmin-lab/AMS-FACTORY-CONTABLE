@@ -46,6 +46,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => GastosService()),
         ChangeNotifierProvider(create: (_) => UsuariosService()),
         ChangeNotifierProvider(create: (_) => IngresosService()),
+        ChangeNotifierProvider(create: (_) => ImportacionesService()),
       ],
       child: const MyApp(),
     ),
