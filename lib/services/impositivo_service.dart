@@ -23,7 +23,6 @@ class ImpositivoService extends ChangeNotifier {
       _config = TaxConfig.fromJson(response);
     } catch (e) {
       _error = 'Error al cargar impuestos. Usando valores por defecto.';
-      // Si falla (ej. tabla vacía), mantenemos los defaults de Bolivia.
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -32,7 +31,6 @@ class ImpositivoService extends ChangeNotifier {
 
   Future<bool> updateConfig(TaxConfig nuevaConfig) async {
     try {
-      // Como solo hay 1 registro, buscamos el primero que haya y lo actualizamos
       final response = await SupabaseService.client.from(_table).select('id').limit(1).single();
       final id = response['id'];
 
@@ -41,6 +39,9 @@ class ImpositivoService extends ChangeNotifier {
         'it_ventas': nuevaConfig.itVentas,
         'iva_compras': nuevaConfig.ivaCompras,
         'iue_utilidades': nuevaConfig.iueUtilidades,
+        'saldo_iva_anterior': nuevaConfig.saldoIvaAnterior,
+        'saldo_iue_compensar': nuevaConfig.saldoIuePorCompensar,
+        'mes_cierre_gestion': nuevaConfig.mesCierreGestion,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', id);
       
@@ -51,6 +52,18 @@ class ImpositivoService extends ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<void> actualizarSaldosArrastrados(double nuevoSaldoIva, double nuevoSaldoIue) async {
+    try {
+      final nuevaConfig = _config.copyWith(
+        saldoIvaAnterior: nuevoSaldoIva,
+        saldoIuePorCompensar: nuevoSaldoIue,
+      );
+      await updateConfig(nuevaConfig);
+    } catch (e) {
+      debugPrint('Error actualizando saldos arrastrados: $e');
     }
   }
 }

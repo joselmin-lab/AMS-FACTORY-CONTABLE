@@ -53,6 +53,14 @@ class AppDrawer extends StatelessWidget {
                   currentRoute: currentRoute,
                   color: AppColors.importacionesColor,
                 ),
+                _buildNavItem(
+                  context: context,
+                  icon: Icons.analytics_outlined,
+                  label: 'Reportes Generales',
+                  route: AppRoutes.reportes,
+                  currentRoute: currentRoute,
+                  color: Colors.amber, 
+                ),
                 const Divider(height: 1),
                 _buildSectionHeader('Finanzas'),
                 _buildNavItem(

@@ -14,6 +14,8 @@ import 'package:ams_control_contable/services/cuentas_cobrar_service.dart';
 import 'package:ams_control_contable/services/cuentas_pagar_service.dart';
 import 'package:ams_control_contable/services/impositivo_service.dart';
 import 'package:ams_control_contable/services/gastos_service.dart';
+import 'package:ams_control_contable/services/importaciones_service.dart';
+import 'package:ams_control_contable/services/pdf_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -42,16 +44,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<CuentasCobrarService>().fetchCuentas(),
       context.read<CuentasPagarService>().fetchCuentas(),
       context.read<ImpositivoService>().fetchConfig(),
-      context.read<GastosService>().fetchGastos(), // <-- Carga de Gastos
+      context.read<GastosService>().fetchGastos(), 
+      context.read<ImportacionesService>().fetchCarpetas(),
     ]);
     if (mounted) setState(() => _isRefreshing = false);
   }
 
-  Future<void> _generarDeudasImpositivas(double ivaPagar, double itPagar) async {
+  Future<void> _generarDeudasImpositivas(double ivaPagar, double itPagar, double nuevoSaldoIvaFavor, double nuevoSaldoIue) async {
     final mesStr = DateFormat('MMMM yyyy', 'es_ES').format(DateTime.now()).toUpperCase();
     bool exito = true;
 
-    // Generar deuda IT
+    // 1. Generar deuda IT (Si después de compensar el IUE aún debes)
     if (itPagar > 0) {
       final cuentaIT = CuentaPagar(
         proveedor: 'Impuestos Nacionales (IT)',
@@ -63,7 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!res) exito = false;
     }
 
-    // Generar deuda IVA (solo si hay saldo en contra)
+    // 2. Generar deuda IVA (Solo si hubo IVA por Pagar este mes)
     if (ivaPagar > 0) {
       final cuentaIVA = CuentaPagar(
         proveedor: 'Impuestos Nacionales (IVA)',
@@ -75,10 +78,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!res) exito = false;
     }
 
+    // 3. ¡MAGIA! Guardar los saldos a favor (Créditos) para el mes que viene
+    await context.read<ImpositivoService>().actualizarSaldosArrastrados(nuevoSaldoIvaFavor, nuevoSaldoIue);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(exito ? 'Deudas fiscales enviadas a Cuentas por Pagar.' : 'Hubo un error al generar deudas.'),
+          content: Text(exito ? 'Mes cerrado. Saldos a favor guardados y deudas generadas.' : 'Hubo un error al generar deudas.'),
           backgroundColor: exito ? Colors.green : Colors.red,
         ),
       );
@@ -87,11 +93,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- FILTROS DE MES ACTUAL Y BLOQUEO DE BOTÓN ---
     final now = DateTime.now();
     bool esEsteMes(DateTime d) => d.year == now.year && d.month == now.month;
     
-    // Lógica para saber si hoy es el último día del mes
     final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
     final esUltimoDia = now.day == lastDayOfMonth;
 
@@ -118,27 +122,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final dineroEnLaCalle = cuentasCobrar.fold(0.0, (sum, c) => sum + c.saldoPendiente);
     final deudaAProveedores = cuentasPagar.fold(0.0, (sum, c) => sum + c.saldoPendiente);
 
-    // --- MOTOR IMPOSITIVO (SOLO ESTE MES) ---
+    // --- MOTOR IMPOSITIVO (CON MEMORIA FISCAL) ---
     final configImp = context.watch<ImpositivoService>().config;
     final gastos = context.watch<GastosService>().gastos;
+    final importaciones = context.watch<ImportacionesService>().carpetas;
     
-    // Sumatorias Facturadas del Mes (Débito)
+    // Débito Fiscal (IVA a pagar por Ventas)
     final ventasFacMes = ventas.where((v) => v.facturado && esEsteMes(v.fecha)).fold(0.0, (sum, v) => sum + (v.precio * v.cantidad));
     final ingresosFacMes = ingresos.where((i) => i.facturado && esEsteMes(i.fecha)).fold(0.0, (sum, i) => sum + i.precio);
     final baseVentas = ventasFacMes + ingresosFacMes;
+    final ivaVentasTotal = baseVentas * (configImp.ivaVentas / 100);
 
-    // Sumatorias Facturadas del Mes (Crédito)
+    // Crédito Fiscal (IVA a favor por Compras)
     final comprasFacMes = compras.where((c) => c.facturado && esEsteMes(c.fecha)).fold(0.0, (sum, c) => sum + (c.precio * c.cantidad));
     final salidasFacMes = salidas.where((s) => s.facturado && esEsteMes(s.fecha)).fold(0.0, (sum, s) => sum + s.precio);
     final gastosFacMes = gastos.where((g) => g.facturado && esEsteMes(g.fecha)).fold(0.0, (sum, g) => sum + g.monto);
-    final baseCompras = comprasFacMes + salidasFacMes + gastosFacMes;
+    final baseComprasLocal = comprasFacMes + salidasFacMes + gastosFacMes;
+    final ivaComprasLocal = baseComprasLocal * (configImp.ivaCompras / 100);
 
-    // Cálculos
-    final ivaCompras = baseCompras * (configImp.ivaCompras / 100); // Crédito
-    final ivaVentas = baseVentas * (configImp.ivaVentas / 100);    // Débito
-    final saldoIva = ivaCompras - ivaVentas; // Positivo = A favor, Negativo = En contra
-    
-    final itVentas = baseVentas * (configImp.itVentas / 100);
+    // Crédito Fiscal de Importaciones
+    double ivaImportacionesMes = 0;
+    for (var carpeta in importaciones) {
+      for (var gasto in carpeta.gastos) {
+        if (esEsteMes(gasto.fechaGasto)) {
+          if (gasto.tipoSistema == 'IVA') {
+            ivaImportacionesMes += gasto.montoBs;
+          } else if (gasto.tieneIva) {
+            ivaImportacionesMes += gasto.montoBs * (configImp.ivaCompras / 100);
+          }
+        }
+      }
+    }
+
+    // LÓGICA DE SALDO IVA
+    final ivaComprasTotal = ivaComprasLocal + ivaImportacionesMes + configImp.saldoIvaAnterior; 
+    final saldoIva = ivaComprasTotal - ivaVentasTotal; 
+    // Si es Positivo: Es IVA a Favor (Crédito). Si es Negativo: Es IVA por Pagar.
+
+    // LÓGICA DE COMPENSACIÓN IT vs IUE
+    final itCalculadoOriginal = baseVentas * (configImp.itVentas / 100);
+    double itPorPagarReal = 0;
+    double iueSobranteParaElFuturo = configImp.saldoIuePorCompensar;
+
+    if (iueSobranteParaElFuturo >= itCalculadoOriginal) {
+      itPorPagarReal = 0;
+      iueSobranteParaElFuturo -= itCalculadoOriginal; 
+    } else {
+      itPorPagarReal = itCalculadoOriginal - iueSobranteParaElFuturo;
+      iueSobranteParaElFuturo = 0; 
+    }
 
     // --- DISEÑO DARK MODE ---
     const bgColor = Color(0xFF0F172A);
@@ -189,9 +221,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Entradas', style: const TextStyle(color: Colors.white54, fontSize: 12)), Text(_currencyFormat.format(totalEntradas), style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold))])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Entradas', style: TextStyle(color: Colors.white54, fontSize: 12)), Text(_currencyFormat.format(totalEntradas), style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold))])),
                       Container(width: 1, height: 30, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 16)),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Salidas', style: const TextStyle(color: Colors.white54, fontSize: 12)), Text(_currencyFormat.format(totalSalidasCaja), style: const TextStyle(color: Colors.pinkAccent, fontSize: 16, fontWeight: FontWeight.bold))])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Salidas', style: TextStyle(color: Colors.white54, fontSize: 12)), Text(_currencyFormat.format(totalSalidasCaja), style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold))])),
                     ],
                   ),
                 ],
@@ -208,7 +240,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 32),
 
-            // --- NUEVA TARJETA: ESTADO IMPOSITIVO DEL MES ---
+            // --- ESTADO IMPOSITIVO DEL MES ---
             const Text('Estado Impositivo (Mes Actual)', style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 1.2)),
             const SizedBox(height: 16),
             Container(
@@ -225,13 +257,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const Divider(color: Colors.white10, height: 24),
                   _TaxRow('Ventas e Ingresos:', _currencyFormat.format(baseVentas), Colors.white70),
-                  _TaxRow('Compras y Gastos:', _currencyFormat.format(baseCompras), Colors.white70),
+                  _TaxRow('Compras Locales y Gastos:', _currencyFormat.format(baseComprasLocal), Colors.white70),
                   const SizedBox(height: 16),
                   
-                  const Align(alignment: Alignment.centerLeft, child: Text('Cálculo de Impuestos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+                  const Align(alignment: Alignment.centerLeft, child: Text('Cálculo de Crédito y Débito', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
                   const Divider(color: Colors.white10, height: 24),
-                  _TaxRow('Crédito Fiscal (IVA Compras +)', _currencyFormat.format(ivaCompras), Colors.greenAccent),
-                  _TaxRow('Débito Fiscal (IVA Ventas -)', _currencyFormat.format(ivaVentas), Colors.redAccent),
+                  
+                  if (configImp.saldoIvaAnterior > 0)
+                    _TaxRow('Saldo a Favor Mes Anterior', _currencyFormat.format(configImp.saldoIvaAnterior), Colors.blueAccent),
+                  
+                  _TaxRow('Crédito F. (Compras Locales)', _currencyFormat.format(ivaComprasLocal), Colors.greenAccent.withAlpha(150)),
+                  _TaxRow('Crédito F. (Importaciones)', _currencyFormat.format(ivaImportacionesMes), Colors.greenAccent.withAlpha(150)),
+                  const Divider(color: Colors.white10, height: 8),
+                  
+                  _TaxRow('Total Crédito (IVA a Favor +)', _currencyFormat.format(ivaComprasTotal), Colors.greenAccent),
+                  _TaxRow('Total Débito (IVA Ventas -)', _currencyFormat.format(ivaVentasTotal), Colors.redAccent),
                   
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 12),
@@ -240,15 +280,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(saldoIva >= 0 ? 'SALDO IVA A FAVOR' : 'IVA POR PAGAR', style: TextStyle(fontWeight: FontWeight.bold, color: saldoIva >= 0 ? Colors.greenAccent : Colors.redAccent)),
+                        Text(saldoIva >= 0 ? 'NUEVO SALDO IVA A FAVOR' : 'IVA POR PAGAR', style: TextStyle(fontWeight: FontWeight.bold, color: saldoIva >= 0 ? Colors.greenAccent : Colors.redAccent)),
                         Text(_currencyFormat.format(saldoIva.abs()), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: saldoIva >= 0 ? Colors.greenAccent : Colors.redAccent)),
                       ],
                     ),
                   ),
 
-                  _TaxRow('IT Ventas (Por Pagar -)', _currencyFormat.format(itVentas), Colors.orangeAccent),
+                                    // COMPENSACIÓN IT vs IUE
+                  const Divider(color: Colors.white10, height: 24),
+                  const Align(alignment: Alignment.centerLeft, child: Text('Compensación IT vs IUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+                  const SizedBox(height: 12),
+                  _TaxRow('IT Calculado (Mes)', _currencyFormat.format(itCalculadoOriginal), Colors.orangeAccent),
+                  
+                  if (configImp.saldoIuePorCompensar > 0) ...[
+                    _TaxRow('IUE Disp. para Compensar', _currencyFormat.format(configImp.saldoIuePorCompensar), Colors.blueAccent),
+                    _TaxRow('IT Final a Pagar', _currencyFormat.format(itPorPagarReal), Colors.orange),
+                    _TaxRow('IUE Restante Próx. Mes', _currencyFormat.format(iueSobranteParaElFuturo), Colors.blueAccent.withAlpha(150)),
+                  ] else ...[
+                    _TaxRow('IT Final a Pagar', _currencyFormat.format(itPorPagarReal), Colors.orange),
+                  ],
                   
                   const SizedBox(height: 24),
+
+                 
+
+                  // BOTÓN CERRAR MES (El que ya tenías)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -264,27 +320,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           builder: (ctx) => AlertDialog(
                             backgroundColor: cardColor,
                             title: const Text('Cerrar Mes Fiscal', style: TextStyle(color: Colors.white)),
-                            content: const Text('¿Generar Cuentas por Pagar para el IT y el IVA de este mes?', style: TextStyle(color: Colors.white70)),
+                            content: const Text('¿Generar Cuentas por Pagar para el IT y el IVA de este mes y guardar los saldos a favor para el próximo mes?', style: TextStyle(color: Colors.white70)),
                             actions: [
                               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurpleAccent),
                                 onPressed: () {
                                   Navigator.pop(ctx);
-                                  _generarDeudasImpositivas(saldoIva < 0 ? saldoIva.abs() : 0.0, itVentas);
+                                  final double ivaAPagar = saldoIva < 0 ? saldoIva.abs() : 0.0;
+                                  final double nuevoSaldoAcaFavor = saldoIva > 0 ? saldoIva : 0.0;
+                                  _generarDeudasImpositivas(ivaAPagar, itPorPagarReal, nuevoSaldoAcaFavor, iueSobranteParaElFuturo);
                                 },
-                                child: const Text('Generar Deudas', style: TextStyle(color: Colors.white)),
+                                child: const Text('Cerrar Mes', style: TextStyle(color: Colors.white)),
                               ),
                             ],
                           ),
                         );
                       } : () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Solo puedes liquidar impuestos el último día del mes.'), backgroundColor: Colors.orange),
+                          const SnackBar(content: Text('Solo puedes cerrar el mes el último día.'), backgroundColor: Colors.orange),
                         );
                       },
                       icon: Icon(esUltimoDia ? Icons.account_balance_rounded : Icons.lock_outline_rounded),
-                      label: Text(esUltimoDia ? 'Liquidar Impuestos' : 'Liquidación Bloqueada (Habilitado el día $lastDayOfMonth)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      label: Text(esUltimoDia ? 'Cerrar Mes Fiscal' : 'Cierre Bloqueado (Habilitado el día $lastDayOfMonth)', style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -311,6 +369,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _ModuleItem('Impuestos', Icons.request_quote_outlined, Colors.deepPurpleAccent, AppRoutes.impositivo),
       _ModuleItem('Gastos', Icons.money_off_outlined, Colors.pinkAccent, AppRoutes.gastos),
       _ModuleItem('Importar', Icons.flight_land_rounded, Colors.cyanAccent, AppRoutes.importaciones),
+      _ModuleItem('Personal', Icons.people_outline_rounded, Colors.grey, AppRoutes.usuarios),
+      _ModuleItem('Importar', Icons.flight_land_rounded, Colors.cyanAccent, AppRoutes.importaciones),
+      _ModuleItem('Reportes', Icons.analytics_outlined, Colors.amberAccent, AppRoutes.reportes), // <--- AGREGAR ESTO
       _ModuleItem('Personal', Icons.people_outline_rounded, Colors.grey, AppRoutes.usuarios),
     ];
 

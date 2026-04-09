@@ -23,7 +23,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this); // SOLO 2 PESTAÑAS AHORA
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CuentasPagarService>().fetchCuentas();
     });
@@ -83,7 +83,8 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
                       if (v == null || v.isEmpty) return 'Requerido';
                       final val = double.tryParse(v.replaceAll(',', '.'));
                       if (val == null || val <= 0) return 'Monto inválido';
-                      if (!esVariableNuevo && val > cuenta.saldoPendiente) return 'No puedes pagar más del saldo';
+                      // Le damos un centavo de tolerancia por errores de coma flotante
+                      if (!esVariableNuevo && val > (cuenta.saldoPendiente + 0.01)) return 'No puedes pagar más del saldo';
                       return null;
                     },
                   ),
@@ -104,7 +105,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     value: _metodoPago,
-                    decoration: const InputDecoration(labelText: 'Método de Pago'),
+                    decoration: const InputDecoration(labelText: 'Método de Pago (Caja)'),
                     items: ['Transferencia', 'Efectivo', 'Cheque'].map((String m) {
                       return DropdownMenuItem(value: m, child: Text(m));
                     }).toList(),
@@ -121,15 +122,18 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
                     final abono = double.parse(_montoCtrl.text.replaceAll(',', '.'));
                     final tc = esUsd ? double.parse(_tcCtrl.text.replaceAll(',', '.')) : 1.0;
                     
-                    Navigator.pop(ctx);
+                    Navigator.pop(ctx); // Cerramos diálogo
 
                     if (esVariableNuevo) {
                       // Es un gasto variable (Agua, Luz), le actualizamos el monto
                       final cuentaActualizada = CuentaPagar(id: cuenta.id, proveedor: cuenta.proveedor, montoTotal: abono, estado: EstadoCuenta.pendiente, fechaEmision: cuenta.fechaEmision, fechaVencimiento: cuenta.fechaVencimiento, notas: cuenta.notas, moneda: cuenta.moneda);
                       await context.read<CuentasPagarService>().updateCuenta(cuentaActualizada);
                     } else {
-                      // Abonamos a la deuda normal
-                      await context.read<CuentasPagarService>().registrarPago(cuenta.id!, abono, _metodoPago, tcCaja: tc);
+                      // Abonamos a la deuda normal (Envía la info al servicio)
+                      final ok = await context.read<CuentasPagarService>().registrarPago(cuenta.id!, abono, _metodoPago, tcCaja: tc);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Pago registrado correctamente.' : 'Error al procesar el pago.'), backgroundColor: ok ? Colors.green : Colors.red));
+                      }
                     }
                   }
                 },
@@ -147,7 +151,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar Deuda', style: TextStyle(color: Colors.red)),
-        content: const Text('¿Estás seguro de eliminar este registro?\nLos abonos realizados a esta deuda no se eliminarán de la caja.'),
+        content: const Text('¿Estás seguro de eliminar este registro?\nLos abonos realizados a esta deuda no se eliminarán de la caja (debes anularlos manualmente).'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
           ElevatedButton(
@@ -156,7 +160,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
               context.read<CuentasPagarService>().deleteCuenta(cuenta.id!);
               Navigator.pop(ctx);
             },
-            child: const Text('Eliminar'),
+            child: const Text('Eliminar Definitivamente'),
           ),
         ],
       ),
@@ -172,7 +176,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
-          tabs: const [Tab(text: 'Pendientes'), Tab(text: 'Pagados'), Tab(text: 'Vencidos')],
+          tabs: const [Tab(text: 'Pendientes'), Tab(text: 'Historial Pagadas')],
         ),
       ),
       drawer: const AppDrawer(),
@@ -182,14 +186,12 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
 
           final pendientes = service.cuentas.where((c) => c.estado == EstadoCuenta.pendiente || c.estado == EstadoCuenta.parcial).toList();
           final pagados = service.cuentas.where((c) => c.estado == EstadoCuenta.pagado).toList();
-          final vencidos = service.cuentas.where((c) => c.estado == EstadoCuenta.vencido).toList();
 
           return TabBarView(
             controller: _tabController,
             children: [
               _buildListaCuentas(pendientes),
               _buildListaCuentas(pagados),
-              _buildListaCuentas(vencidos),
             ],
           );
         },
@@ -263,7 +265,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.pagarColor, foregroundColor: Colors.white),
                         onPressed: () => _mostrarDialogoPago(cuenta),
                         icon: const Icon(Icons.payment, size: 18),
-                        label: Text(esVariable ? 'Definir Gasto' : 'Abonar / Pagar'),
+                        label: Text(esVariable ? 'Definir Factura' : 'Abonar / Pagar'),
                       ),
                   ],
                 )

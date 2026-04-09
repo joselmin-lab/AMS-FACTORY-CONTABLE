@@ -77,11 +77,12 @@ class CuentasPagarService extends ChangeNotifier {
       
       final nuevoMontoPagado = cuenta.montoPagado + montoAbono;
       String nuevoEstado = 'parcial';
-      if (nuevoMontoPagado >= cuenta.montoTotal) {
+      // Con una pequeñísima tolerancia para redondeos flotantes
+      if (nuevoMontoPagado >= (cuenta.montoTotal - 0.01)) {
         nuevoEstado = 'pagado';
       }
 
-      // 1. Actualizamos la deuda (El monto abonado está en la moneda de la deuda)
+      // 1. Actualizamos la deuda (El monto abonado está en la moneda original de la deuda)
       await SupabaseService.client.from(_table).update({
         'monto_pagado': nuevoMontoPagado,
         'estado': nuevoEstado,
@@ -98,7 +99,7 @@ class CuentasPagarService extends ChangeNotifier {
 
       await SupabaseService.client.from('salidas_contable').insert({
         'detalle': detallePago,
-        'descripcion': 'Pago de Cuenta por Pagar: ${cuenta.id}',
+        'descripcion': 'Pago de Cuenta por Pagar',
         'precio': montoParaCajaBs,
         'metodo_pago': metodoPago,
         'facturado': false,
@@ -106,7 +107,6 @@ class CuentasPagarService extends ChangeNotifier {
         'usuario_id': SupabaseService.client.auth.currentUser?.id,
       });
 
-      // 3. (Opcional) Si es importación, podríamos actualizar sus pagos allí también, pero por ahora se mantiene la salida de caja pura
       await fetchCuentas();
       return true;
     } catch (e) {
