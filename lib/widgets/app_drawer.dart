@@ -81,6 +81,14 @@ class AppDrawer extends StatelessWidget {
                 ),
                 _buildNavItem(
                   context: context,
+                  icon: Icons.savings_rounded,
+                  label: 'Ingresos Extra',
+                  route: AppRoutes.ingresos, 
+                  currentRoute: currentRoute,
+                  color: Colors.teal,
+                ),
+                _buildNavItem(
+                  context: context,
                   icon: Icons.arrow_circle_down_rounded,
                   label: AppStrings.cuentasPorCobrar,
                   route: AppRoutes.cobrar,

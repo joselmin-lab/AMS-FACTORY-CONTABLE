@@ -15,6 +15,8 @@ import '../../screens/pagar/pagar_screen.dart';
 import '../../screens/usuarios/usuarios_screen.dart';
 import '../../screens/salidas/salidas_screen.dart';
 import '../../screens/salidas/crear_salida_screen.dart';
+import '../../screens/ingresos/ingresos_screen.dart';
+import '../../screens/ingresos/crear_ingreso_screen.dart';
 
 class AppRoutes {
   static const String login = '/login'; // <--- Nueva ruta
@@ -29,6 +31,8 @@ class AppRoutes {
   static const String gastos = '/gastos';
   static const String salidas = '/salidas';
   static const String crearSalida = '/salidas/crear';
+  static const String ingresos = '/ingresos';
+  static const String crearIngreso = '/ingresos/crear';
   
   // Nombres corregidos para que coincidan con el Drawer y Dashboard
   static const String cobrar = '/cobrar';
@@ -68,6 +72,10 @@ class AppRouter {
        return MaterialPageRoute(builder: (_) => const SalidasScreen());
       case AppRoutes.crearSalida:
        return MaterialPageRoute(builder: (_) => const CrearSalidaScreen());
+       case AppRoutes.ingresos:
+        return MaterialPageRoute(builder: (_) => const IngresosScreen());
+      case AppRoutes.crearIngreso:
+        return MaterialPageRoute(builder: (_) => const CrearIngresoScreen());
       case AppRoutes.usuarios:
         return MaterialPageRoute(builder: (_) => const UsuariosScreen());
       default:

@@ -182,12 +182,14 @@ class _CrearCompraScreenState extends State<CrearCompraScreen> {
               ),
               const SizedBox(height: 16),
 
-              CheckboxListTile(
-                title: const Text('¿Es facturado?'),
+              // 1. REEMPLAZA EL CHECKBOX POR EL SWITCH
+              SwitchListTile(
+                title: const Text('¿Compra Facturada?'),
+                subtitle: const Text('Activa si el proveedor emitió factura con NIT'),
                 value: _facturado,
-                onChanged: (val) => setState(() => _facturado = val ?? false),
-                contentPadding: EdgeInsets.zero,
+                onChanged: (v) => setState(() => _facturado = v),
                 activeColor: AppColors.comprasColor,
+                contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 32),
 

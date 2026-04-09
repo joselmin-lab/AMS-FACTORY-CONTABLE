@@ -181,10 +181,12 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
                     onChanged: (v) => setState(() => _metodoPago = v!),
                   ),
                   const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('¿Venta con Factura?'),
+                  // 2. REEMPLAZA EL CHECKBOX POR EL SWITCH
+                  SwitchListTile(
+                    title: const Text('¿Venta Facturada?'),
+                    subtitle: const Text('Activa si se emitió factura al cliente con NIT'),
                     value: _facturado,
-                    onChanged: (v) => setState(() => _facturado = v ?? false),
+                    onChanged: (v) => setState(() => _facturado = v),
                     activeColor: AppColors.ventasColor,
                     contentPadding: EdgeInsets.zero,
                   ),

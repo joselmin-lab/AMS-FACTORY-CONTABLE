@@ -96,12 +96,14 @@ class _CrearSalidaScreenState extends State<CrearSalidaScreen> {
               ),
               const SizedBox(height: 16),
 
-              CheckboxListTile(
-                title: const Text('¿Es facturado?'),
+              // 3. REEMPLAZA EL CHECKBOX POR EL SWITCH
+              SwitchListTile(
+                title: const Text('¿Egreso Facturado?'),
+                subtitle: const Text('Activa si se recibió factura por esta salida de dinero'),
                 value: _facturado,
-                onChanged: (val) => setState(() => _facturado = val ?? false),
+                onChanged: (v) => setState(() => _facturado = v),
+                activeColor: Colors.deepOrange,
                 contentPadding: EdgeInsets.zero,
-                activeColor: colorModulo,
               ),
               const SizedBox(height: 32),
 
