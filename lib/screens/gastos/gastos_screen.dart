@@ -36,11 +36,12 @@ class _GastosScreenState extends State<GastosScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
-  void _showFormularioGasto({Gasto? gasto}) {
+    void _showFormularioGasto({Gasto? gasto}) {
     final formKey = GlobalKey<FormState>();
     final descripcionCtrl = TextEditingController(text: gasto?.descripcion);
     final montoCtrl = TextEditingController(text: gasto?.monto.toString());
     final notasCtrl = TextEditingController(text: gasto?.notas);
+    bool isFacturado = gasto?.facturado ?? false; // <--- NUEVO ESTADO DEL SWITCH
     
     // Por defecto seleccionamos el tipo de la pestaña actual o el del gasto si estamos editando
     TipoGasto tipoSeleccionado = gasto?.tipo ?? TipoGasto.values[_tabController.index];
@@ -86,6 +87,16 @@ class _GastosScreenState extends State<GastosScreen> with SingleTickerProviderSt
                       onChanged: (val) => setStateDialog(() => tipoSeleccionado = val!),
                     ),
                     const SizedBox(height: 12),
+                    // --- NUEVO SWITCH DE FACTURADO ---
+                    SwitchListTile(
+                      title: const Text('¿Gasto Facturado?', style: TextStyle(fontSize: 14)),
+                      subtitle: const Text('Activa si este gasto genera crédito fiscal', style: TextStyle(fontSize: 11)),
+                      value: isFacturado,
+                      onChanged: (v) => setStateDialog(() => isFacturado = v),
+                      activeColor: AppColors.gastosColor,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: notasCtrl,
                       decoration: const InputDecoration(labelText: 'Notas adicionales'),
@@ -107,11 +118,11 @@ class _GastosScreenState extends State<GastosScreen> with SingleTickerProviderSt
                       monto: double.parse(montoCtrl.text),
                       tipo: tipoSeleccionado,
                       fecha: gasto?.fecha ?? DateTime.now(),
+                      facturado: isFacturado, // <--- GUARDAMOS EL SWITCH
                       notas: notasCtrl.text.trim(),
                     );
-
+                    
                     Navigator.pop(ctx);
-
                     if (gasto == null) {
                       await context.read<GastosService>().createGasto(nuevoGasto);
                     } else {

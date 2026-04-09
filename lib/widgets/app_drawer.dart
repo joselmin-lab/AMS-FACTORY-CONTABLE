@@ -184,7 +184,7 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem({
+    Widget _buildNavItem({
     required BuildContext context,
     required IconData icon,
     required String label,
@@ -192,34 +192,30 @@ class AppDrawer extends StatelessWidget {
     required String currentRoute,
     required Color color,
   }) {
-    final bool isSelected = currentRoute == route;
+    final isSelected = currentRoute == route;
 
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? color : AppColors.textSecondary,
-        size: 22,
-      ),
+      leading: Icon(icon, color: isSelected ? color : Colors.grey.shade600),
       title: Text(
         label,
         style: TextStyle(
-          fontSize: 14,
-          fontWeight:
-              isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected ? color : AppColors.textPrimary,
+          color: isSelected ? color : Colors.grey.shade800,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
       selected: isSelected,
       selectedTileColor: color.withAlpha(26),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       onTap: () {
-        Navigator.pop(context);
+        Navigator.pop(context); // Cierra el menú lateral (Drawer) siempre
+        
         if (!isSelected) {
-          Navigator.pushReplacementNamed(context, route);
+          if (route == AppRoutes.dashboard) {
+            // Si vamos al Dashboard, borramos todo el historial de pantallas y volvemos a la raíz
+            Navigator.pushNamedAndRemoveUntil(context, route, (r) => false);
+          } else {
+            // Si vamos a cualquier otra pantalla, la reemplazamos
+            Navigator.pushReplacementNamed(context, route);
+          }
         }
       },
     );

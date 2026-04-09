@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../screens/auth/login_screen.dart'; // <--- Nueva pantalla de Login
+import '../../screens/auth/login_screen.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/compras/compras_screen.dart';
 import '../../screens/compras/crear_compra_screen.dart';
@@ -19,7 +19,7 @@ import '../../screens/ingresos/ingresos_screen.dart';
 import '../../screens/ingresos/crear_ingreso_screen.dart';
 
 class AppRoutes {
-  static const String login = '/login'; // <--- Nueva ruta
+  static const String login = '/login';
   static const String dashboard = '/dashboard';
   static const String compras = '/compras';
   static const String crearCompra = '/compras/crear';
@@ -33,11 +33,8 @@ class AppRoutes {
   static const String crearSalida = '/salidas/crear';
   static const String ingresos = '/ingresos';
   static const String crearIngreso = '/ingresos/crear';
-  
-  // Nombres corregidos para que coincidan con el Drawer y Dashboard
   static const String cobrar = '/cobrar';
   static const String pagar = '/pagar';
-  
   static const String usuarios = '/usuarios';
 }
 
@@ -45,41 +42,42 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.login:
-        return MaterialPageRoute(builder: (_) => const LoginScreen());
+        return MaterialPageRoute(builder: (_) => const LoginScreen(), settings: settings);
       case AppRoutes.dashboard:
-        return MaterialPageRoute(builder: (_) => const DashboardScreen());
+        return MaterialPageRoute(builder: (_) => const DashboardScreen(), settings: settings);
       case AppRoutes.compras:
-        return MaterialPageRoute(builder: (_) => const ComprasScreen());
+        return MaterialPageRoute(builder: (_) => const ComprasScreen(), settings: settings);
       case AppRoutes.crearCompra:
-        return MaterialPageRoute(builder: (_) => const CrearCompraScreen());
+        return MaterialPageRoute(builder: (_) => const CrearCompraScreen(), settings: settings);
       case AppRoutes.ventas:
-        return MaterialPageRoute(builder: (_) => const VentasScreen());
+        return MaterialPageRoute(builder: (_) => const VentasScreen(), settings: settings);
       case AppRoutes.crearVenta:
-        return MaterialPageRoute(builder: (_) => const CrearVentaScreen());
+        return MaterialPageRoute(builder: (_) => const CrearVentaScreen(), settings: settings);
       case AppRoutes.importaciones:
-        return MaterialPageRoute(builder: (_) => const ImportacionesScreen());
+        return MaterialPageRoute(builder: (_) => const ImportacionesScreen(), settings: settings);
       case AppRoutes.crearImportacion:
-        return MaterialPageRoute(builder: (_) => const CrearImportacionScreen());
+        return MaterialPageRoute(builder: (_) => const CrearImportacionScreen(), settings: settings);
       case AppRoutes.impositivo:
-        return MaterialPageRoute(builder: (_) => const ImpositivoScreen());
+        return MaterialPageRoute(builder: (_) => const ImpositivoScreen(), settings: settings);
       case AppRoutes.gastos:
-        return MaterialPageRoute(builder: (_) => const GastosScreen());
+        return MaterialPageRoute(builder: (_) => const GastosScreen(), settings: settings);
       case AppRoutes.cobrar:
-        return MaterialPageRoute(builder: (_) => const CobrarScreen());
+        return MaterialPageRoute(builder: (_) => const CobrarScreen(), settings: settings);
       case AppRoutes.pagar:
-        return MaterialPageRoute(builder: (_) => const PagarScreen());
+        return MaterialPageRoute(builder: (_) => const PagarScreen(), settings: settings);
       case AppRoutes.salidas:
-       return MaterialPageRoute(builder: (_) => const SalidasScreen());
+        return MaterialPageRoute(builder: (_) => const SalidasScreen(), settings: settings);
       case AppRoutes.crearSalida:
-       return MaterialPageRoute(builder: (_) => const CrearSalidaScreen());
-       case AppRoutes.ingresos:
-        return MaterialPageRoute(builder: (_) => const IngresosScreen());
+        return MaterialPageRoute(builder: (_) => const CrearSalidaScreen(), settings: settings);
+      case AppRoutes.ingresos:
+        return MaterialPageRoute(builder: (_) => const IngresosScreen(), settings: settings);
       case AppRoutes.crearIngreso:
-        return MaterialPageRoute(builder: (_) => const CrearIngresoScreen());
+        return MaterialPageRoute(builder: (_) => const CrearIngresoScreen(), settings: settings);
       case AppRoutes.usuarios:
-        return MaterialPageRoute(builder: (_) => const UsuariosScreen());
+        return MaterialPageRoute(builder: (_) => const UsuariosScreen(), settings: settings);
       default:
         return MaterialPageRoute(
+          settings: settings,
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('Error')),
             body: Center(child: Text('Ruta no encontrada: ${settings.name}')),
