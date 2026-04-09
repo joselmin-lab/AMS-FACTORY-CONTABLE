@@ -299,7 +299,7 @@ class _DetalleCarpetaScreenState extends State<DetalleCarpetaScreen> with Single
     );
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     return Consumer<ImportacionesService>(
       builder: (ctx, srv, _) {
@@ -313,26 +313,79 @@ class _DetalleCarpetaScreenState extends State<DetalleCarpetaScreen> with Single
           body: TabBarView(
             controller: _tabController,
             children: [
-              // 1. RESUMEN
+              // 1. RESUMEN (ESTADO DE CUENTA)
               ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // CUADRO DE MERCADERÍA (FOB)
                   Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(16)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('VALOR DE LA MERCADERÍA', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-                    const SizedBox(height: 8),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Comercial (FOB Real):'), Text(_curUsd.format(carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd)), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Base Imponible Aduana (${carpeta.porcentajeDeclaracion}%):'), Text(_curUsd.format(carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd) * (carpeta.porcentajeDeclaracion/100)))]),
+                    const Text('ESTADO DE CUENTA: MERCADERÍA (FOB)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    const SizedBox(height: 12),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Comercial:'), Text(_curUsd.format(carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd)), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))]),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Base Imponible Aduana (${carpeta.porcentajeDeclaracion}%):'), Text(_curUsd.format(carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd) * (carpeta.porcentajeDeclaracion/100)), style: const TextStyle(fontSize: 12))]),
+                    const Divider(),
+                    Builder(builder: (context) {
+                      final fobTotalUsd = carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd);
+                      final pagadoUsd = carpeta.pagos.where((p) => p.gastoId == null).fold(0.0, (s, p) => s + (p.moneda == 'USD' ? p.montoOriginal : p.montoBs / carpeta.tipoCambio));
+                      final saldoUsd = fobTotalUsd - pagadoUsd;
+                      return Column(
+                        children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Pagado a Fábrica:'), Text(_curUsd.format(pagadoUsd), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))]),
+                          const SizedBox(height: 4),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('SALDO PENDIENTE:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)), Text(_curUsd.format(saldoUsd > 0 ? saldoUsd : 0), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16))]),
+                        ],
+                      );
+                    }),
                   ])),
                   const SizedBox(height: 16),
+                  
+                  // CUADRO DE GASTOS OPERATIVOS
                   Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(16)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('GASTOS OPERATIVOS REGISTRADOS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                    const Divider(),
-                    ...carpeta.gastos.map((g) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(g.descripcion), Text(_curBs.format(g.montoBs))]))),
-                    const Divider(),
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('COSTO LANDED TOTAL (FOB + GASTOS):'), Text(_curBs.format((carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd)*carpeta.tipoCambio) + carpeta.gastos.fold(0.0, (s,g)=>s+g.montoBs)), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+                    const Text('ESTADO DE CUENTA: GASTOS OPERATIVOS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                    const SizedBox(height: 12),
+                    ...carpeta.gastos.map((g) {
+                      final pagadoBs = carpeta.pagos.where((p) => p.gastoId == g.id).fold(0.0, (s, p) => s + p.montoBs);
+                      final saldoBs = g.montoBs - pagadoBs;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(g.descripcion, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Costo Gasto:'), Text(_curBs.format(g.montoBs))]),
+                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Pagado:'), Text(_curBs.format(pagadoBs), style: const TextStyle(color: Colors.green))]),
+                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Saldo:', style: TextStyle(fontSize: 12)), Text(_curBs.format(saldoBs > 0 ? saldoBs : 0), style: TextStyle(color: saldoBs > 0 ? Colors.red : Colors.green, fontSize: 12, fontWeight: FontWeight.bold))]),
+                            const Divider(height: 12, thickness: 0.5),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('TOTAL GASTOS (BS):', style: TextStyle(fontWeight: FontWeight.bold)), Text(_curBs.format(carpeta.gastos.fold(0.0, (s,g)=>s+g.montoBs)), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
                   ])),
+                  const SizedBox(height: 16),
+
+                  // TOTAL GENERAL LANDED
+                  Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.deepPurple.shade100)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('COSTO LANDED TOTAL:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)), Text(_curBs.format((carpeta.items.fold(0.0, (s,i)=>s+i.totalFobUsd)*carpeta.tipoCambio) + carpeta.gastos.fold(0.0, (s,g)=>s+g.montoBs)), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple, fontSize: 18))]),
+                  ])),
+
                   const SizedBox(height: 24),
-                  if (!liq) ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.all(16), foregroundColor: Colors.white), onPressed: () => srv.liquidarCarpeta(carpeta.id!), icon: const Icon(Icons.inventory_rounded), label: const Text('LIQUIDAR IMPORTACIÓN (Inyectar Stock)'))
+                  if (!liq) ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.all(16), foregroundColor: Colors.white), 
+                    onPressed: () async {
+                      final exito = await srv.liquidarCarpeta(carpeta.id!);
+                      if (mounted) {
+                        if (exito) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Importación Liquidada, Stock Inyectado y Cuentas por Pagar generadas!'), backgroundColor: Colors.green));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al liquidar: ${srv.error}'), backgroundColor: Colors.red));
+                        }
+                      }
+                    }, 
+                    icon: const Icon(Icons.inventory_rounded), 
+                    label: const Text('LIQUIDAR IMPORTACIÓN (Inyectar Stock)')
+                  )
                 ],
               ),
               // 2. ITEMS

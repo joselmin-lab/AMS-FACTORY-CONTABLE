@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:ams_control_contable/models/cuenta_pagar.dart';
 import 'package:ams_control_contable/services/supabase_service.dart';
-import 'package:ams_control_contable/models/cuenta_cobrar.dart'; // Para obtener el enum EstadoCuenta
 
 class CuentasPagarService extends ChangeNotifier {
   List<CuentaPagar> _cuentas = [];
@@ -18,7 +17,6 @@ class CuentasPagarService extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
       final response = await SupabaseService.client
           .from(_table)
@@ -49,10 +47,7 @@ class CuentasPagarService extends ChangeNotifier {
 
   Future<bool> updateCuenta(CuentaPagar cuenta) async {
     try {
-      await SupabaseService.client
-          .from(_table)
-          .update(cuenta.toJson())
-          .eq('id', cuenta.id!);
+      await SupabaseService.client.from(_table).update(cuenta.toJson()).eq('id', cuenta.id!);
       await fetchCuentas();
       return true;
     } catch (e) {
@@ -75,8 +70,8 @@ class CuentasPagarService extends ChangeNotifier {
     }
   }
 
-  // Método para registrar el pago y crear el egreso en caja
-  Future<bool> registrarPago(String id, double montoAbono, String metodoPago) async {
+  // --- REGISTRO DE PAGO MULTIMONEDA ---
+  Future<bool> registrarPago(String id, double montoAbono, String metodoPago, {double tcCaja = 1.0}) async {
     try {
       final cuenta = _cuentas.firstWhere((c) => c.id == id);
       
@@ -86,22 +81,32 @@ class CuentasPagarService extends ChangeNotifier {
         nuevoEstado = 'pagado';
       }
 
-      // 1. Actualizamos la deuda
+      // 1. Actualizamos la deuda (El monto abonado está en la moneda de la deuda)
       await SupabaseService.client.from(_table).update({
         'monto_pagado': nuevoMontoPagado,
         'estado': nuevoEstado,
       }).eq('id', id);
 
-      // 2. REGISTRAMOS LA SALIDA DE DINERO A CAJA (En la tabla salidas_contable)
+      // 2. Registramos la Salida de Caja (Siempre en Bolivianos)
+      // Si la deuda era en USD, multiplicamos el abono por el TC del día
+      final montoParaCajaBs = cuenta.moneda == 'USD' ? (montoAbono * tcCaja) : montoAbono;
+      
+      String detallePago = 'Pago a proveedor: ${cuenta.proveedor}';
+      if (cuenta.moneda == 'USD') {
+        detallePago += ' (\$US $montoAbono pagados a TC $tcCaja)';
+      }
+
       await SupabaseService.client.from('salidas_contable').insert({
-        'detalle': 'Pago a proveedor: ${cuenta.proveedor}',
-        'descripcion': 'Abono de deuda por compras',
-        'precio': montoAbono,
+        'detalle': detallePago,
+        'descripcion': 'Pago de Cuenta por Pagar: ${cuenta.id}',
+        'precio': montoParaCajaBs,
         'metodo_pago': metodoPago,
         'facturado': false,
         'fecha': DateTime.now().toIso8601String(),
+        'usuario_id': SupabaseService.client.auth.currentUser?.id,
       });
 
+      // 3. (Opcional) Si es importación, podríamos actualizar sus pagos allí también, pero por ahora se mantiene la salida de caja pura
       await fetchCuentas();
       return true;
     } catch (e) {
@@ -110,8 +115,4 @@ class CuentasPagarService extends ChangeNotifier {
       return false;
     }
   }
-
-  double get totalPendiente => _cuentas
-      .where((c) => c.estado != EstadoCuenta.pagado)
-      .fold(0, (sum, c) => sum + c.saldoPendiente);
 }

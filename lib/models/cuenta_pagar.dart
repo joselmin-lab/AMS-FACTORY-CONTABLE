@@ -11,6 +11,7 @@ class CuentaPagar {
   final DateTime fechaEmision;
   final DateTime? fechaVencimiento;
   final String? notas;
+  final String moneda;
 
   const CuentaPagar({
     this.id,
@@ -23,6 +24,7 @@ class CuentaPagar {
     required this.fechaEmision,
     this.fechaVencimiento,
     this.notas,
+    this.moneda = 'Bs',
   });
 
   double get saldoPendiente => montoTotal - montoPagado;
@@ -55,6 +57,7 @@ class CuentaPagar {
       fechaEmision: json['fecha_emision'] != null ? DateTime.parse(json['fecha_emision'].toString()) : DateTime.now(),
       fechaVencimiento: json['fecha_vencimiento'] != null ? DateTime.parse(json['fecha_vencimiento'].toString()) : null,
       notas: json['notas']?.toString(),
+      moneda: json['moneda']?.toString() ?? 'Bs',
     );
   }
 
@@ -69,5 +72,6 @@ class CuentaPagar {
         'fecha_emision': fechaEmision.toIso8601String(),
         'fecha_vencimiento': fechaVencimiento?.toIso8601String(),
         'notas': notas,
+        'moneda': moneda,
       };
 }

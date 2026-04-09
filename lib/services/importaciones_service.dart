@@ -156,11 +156,16 @@ class ImportacionesService extends ChangeNotifier {
     }
   }
 
+    // --- 4. LIQUIDAR, INYECTAR STOCK Y CREAR CUENTAS POR PAGAR ---
   Future<bool> liquidarCarpeta(String carpetaId) async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
+
     try {
       final carpeta = _carpetas.firstWhere((c) => c.id == carpetaId);
+      
+      // 1. Cálculos de Prorrateo
       final double totalFobUsd = carpeta.items.fold(0, (sum, item) => sum + item.totalFobUsd);
       final double totalFobBs = totalFobUsd * carpeta.tipoCambio;
       final double pesoTotal = carpeta.items.fold(0, (sum, item) => sum + item.pesoTotal);
@@ -180,6 +185,7 @@ class ImportacionesService extends ChangeNotifier {
         }
       }
 
+      // 2. Aplicar Costos e INYECTAR STOCK
       for (var item in carpeta.items) {
         final double itemFobBs = item.totalFobUsd * carpeta.tipoCambio;
         final double pValor = totalFobBs > 0 ? (itemFobBs / totalFobBs) : 0;
@@ -197,31 +203,64 @@ class ImportacionesService extends ChangeNotifier {
             if (invRes != null) {
               await SupabaseService.client.from('inventario').update({'stock_actual': ((invRes['stock_actual'] as num?)?.toDouble() ?? 0) + item.cantidad}).eq('id', item.inventarioId!);
             }
-          } catch(e) { debugPrint(e.toString()); }
+          } catch(e) { debugPrint('Error inyectando stock: $e'); }
         }
       }
 
-      // Cuentas por Pagar Automáticas
-      final pagosFobBs = carpeta.pagos.where((p) => p.gastoId == null).fold(0.0, (sum, p) => sum + p.montoBs);
-      if (totalFobBs > pagosFobBs) {
-        await SupabaseService.client.from('cuentas_pagar').insert({'proveedor': carpeta.proveedor, 'detalle': 'Saldo Imp. [${carpeta.numeroDespacho}]', 'monto_total': totalFobBs - pagosFobBs, 'monto_pagado': 0, 'estado': 'pendiente', 'importacion_id': carpeta.id});
+                  // 3. CREAR CUENTAS POR PAGAR AUTOMÁTICAS (EN MONEDA ORIGINAL)
+      
+      // 3.1. Deuda a la Fábrica (FOB en USD)
+      final double pagosFobUsd = carpeta.pagos.where((p) => p.gastoId == null).fold(0.0, (sum, p) => sum + (p.moneda == 'USD' ? p.montoOriginal : p.montoBs / carpeta.tipoCambio));
+      
+      if (totalFobUsd > pagosFobUsd) {
+        await SupabaseService.client.from('cuentas_pagar').insert({
+          'proveedor': carpeta.proveedor, 
+          'notas': 'Mercadería FOB [${carpeta.numeroDespacho}]',
+          'monto_total': totalFobUsd,          // Ej: $200
+          'monto_pagado': pagosFobUsd,         // Ej: $100
+          'moneda': 'USD',                     // <-- AHORA VIAJA EN DÓLARES
+          'estado': pagosFobUsd > 0 ? 'parcial' : 'pendiente', 
+          'importacion_id': carpeta.id,
+          'fecha_emision': DateTime.now().toIso8601String()
+        });
       }
 
+      // 3.2. Deuda a los Gastos Operativos (En su moneda respectiva)
       for (var gasto in carpeta.gastos) {
-        final pagosGasto = carpeta.pagos.where((p) => p.gastoId == gasto.id).fold(0.0, (sum, p) => sum + p.montoBs);
-        if (gasto.montoBs > pagosGasto) {
-          await SupabaseService.client.from('cuentas_pagar').insert({'proveedor': gasto.proveedor, 'detalle': 'Gasto Imp. [${carpeta.numeroDespacho}]: ${gasto.descripcion}', 'monto_total': gasto.montoBs - pagosGasto, 'monto_pagado': 0, 'estado': 'pendiente', 'importacion_id': carpeta.id, 'gasto_imp_id': gasto.id});
+        final double pagosGastoOrig = carpeta.pagos.where((p) => p.gastoId == gasto.id).fold(0.0, (sum, p) => sum + (p.moneda == gasto.moneda ? p.montoOriginal : (gasto.moneda == 'USD' ? p.montoBs / carpeta.tipoCambio : p.montoBs)));
+        
+        if (gasto.montoOriginal > pagosGastoOrig) {
+          await SupabaseService.client.from('cuentas_pagar').insert({
+            'proveedor': gasto.proveedor, 
+            'notas': 'Gasto Imp. [${carpeta.numeroDespacho}]: ${gasto.descripcion}', 
+            'monto_total': gasto.montoOriginal, // El gasto en su moneda original
+            'monto_pagado': pagosGastoOrig,     
+            'moneda': gasto.moneda,             // <-- 'USD' o 'Bs'
+            'estado': pagosGastoOrig > 0 ? 'parcial' : 'pendiente', 
+            'importacion_id': carpeta.id, 
+            'gasto_imp_id': gasto.id,
+            'fecha_emision': DateTime.now().toIso8601String()
+          });
         }
       }
 
-      await SupabaseService.client.from('imp_carpetas').update({'estado': 'Liquidada', 'fecha_cierre': DateTime.now().toIso8601String(), 'total_fob_usd': totalFobUsd, 'total_gastos_bs': totalGastosCapBs, 'costo_total_bs': totalFobBs + totalGastosCapBs}).eq('id', carpeta.id!);
+      // 4. Cerrar la carpeta
+      await SupabaseService.client.from('imp_carpetas').update({
+        'estado': 'Liquidada',
+        'fecha_cierre': DateTime.now().toIso8601String(),
+        'total_fob_usd': totalFobUsd,
+        'total_gastos_bs': totalGastosCapBs,
+        'costo_total_bs': totalFobBs + totalGastosCapBs,
+      }).eq('id', carpeta.id!);
+
       await fetchCarpetas();
       return true;
+
     } catch (e) {
       _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
+        _isLoading = false;
+        notifyListeners();
+        return false; // Retornamos false para que la UI sepa que falló y nos muestre el error exacto
+      }
     }
   }
-}
