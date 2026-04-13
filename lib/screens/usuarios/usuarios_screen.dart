@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ams_control_contable/core/constants/app_colors.dart';
-import 'package:ams_control_contable/core/constants/app_strings.dart';
 import 'package:ams_control_contable/services/usuarios_service.dart';
 import 'package:ams_control_contable/widgets/app_drawer.dart';
-import 'package:ams_control_contable/widgets/empty_state.dart';
 
 class UsuariosScreen extends StatefulWidget {
   const UsuariosScreen({super.key});
@@ -18,118 +15,160 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<UsuariosService>().fetchAdmins();
+      context.read<UsuariosService>().fetchUsuarios();
     });
+  }
+
+  void _mostrarFormulario() {
+    final emailCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    final nombreCtrl = TextEditingController();
+    final telefonoCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Nuevo Usuario / Empleado', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre Completo'), style: const TextStyle(color: Colors.white)),
+              TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email de acceso'), style: const TextStyle(color: Colors.white)),
+              TextField(controller: passCtrl, decoration: const InputDecoration(labelText: 'Contraseña (mínimo 6)'), obscureText: true, style: const TextStyle(color: Colors.white)),
+              TextField(controller: telefonoCtrl, decoration: const InputDecoration(labelText: 'Teléfono (Opcional)'), style: const TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            onPressed: () async {
+              if (emailCtrl.text.isEmpty || passCtrl.text.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email inválido o contraseña muy corta')));
+                return;
+              }
+              
+              final service = context.read<UsuariosService>();
+              final exito = await service.createUsuario(emailCtrl.text, passCtrl.text, nombreCtrl.text, telefonoCtrl.text);
+              
+              if (exito && mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario creado con éxito'), backgroundColor: Colors.green));
+              } else if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${service.error}'), backgroundColor: Colors.red));
+              }
+            },
+            child: const Text('Crear Usuario', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<UsuariosService>();
+
     return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text(AppStrings.usuarios, style: TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.usuariosColor,
+        title: const Text('Gestión de Usuarios', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => context.read<UsuariosService>().fetchAdmins(),
-          ),
-        ],
       ),
       drawer: const AppDrawer(),
-      body: Consumer<UsuariosService>(
-        builder: (context, service, _) {
-          if (service.isLoading) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.usuariosColor));
-          }
-
-          if (service.error != null) {
-            return Center(child: Text(service.error!, style: const TextStyle(color: AppColors.error)));
-          }
-
-          if (service.usuarios.isEmpty) {
-            return const EmptyState(
-              icon: Icons.admin_panel_settings_outlined,
-              message: 'No hay administradores registrados.',
-              actionLabel: '',
-            );
-          }
-
-          return Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: AppColors.usuariosColor.withAlpha(26),
-                child: Row(
-                  children: [
-                    const Icon(Icons.shield_rounded, color: AppColors.usuariosColor, size: 28),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Personal Autorizado', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.usuariosColor)),
-                          Text(
-                            'Estas personas tienen acceso total a la información contable y financiera.',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppColors.usuariosColor,
-                  onRefresh: () => service.fetchAdmins(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: service.usuarios.length,
-                    itemBuilder: (context, index) {
-                      final usuario = service.usuarios[index];
-                      return Card(
-                        elevation: 1,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                          leading: CircleAvatar(
-                            backgroundColor: AppColors.usuariosColor.withAlpha(50),
-                            foregroundColor: AppColors.usuariosColor,
-                            child: Text(usuario.nombre.substring(0, 1).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                          title: Text(usuario.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          
-                          // MOSTRAMOS SI ESTÁ ACTIVO EN VEZ DEL CORREO
-                          subtitle: Row(
-                            children: [
-                              Icon(
-                                usuario.activo ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                                size: 14, 
-                                color: usuario.activo ? AppColors.success : AppColors.error
+      body: service.isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.teal))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: service.usuarios.length,
+              itemBuilder: (context, index) {
+                final u = service.usuarios[index];
+                return Card(
+                  color: const Color(0xFF1E293B),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.person, color: Colors.white)),
+                    title: Text(u.nombre ?? u.email ?? 'Sin Nombre', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: Text('Email: ${u.email ?? "S/N"}\nTel: ${u.phone ?? "-"}', style: const TextStyle(color: Colors.white70)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // BOTÓN CAMBIAR CONTRASEÑA
+                        IconButton(
+                          icon: const Icon(Icons.vpn_key_rounded, color: Colors.amber),
+                          onPressed: () async {
+                            final passCtrl = TextEditingController();
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: const Color(0xFF1E293B),
+                                title: const Text('Cambiar Contraseña', style: TextStyle(color: Colors.white)),
+                                content: TextField(
+                                  controller: passCtrl,
+                                  obscureText: true,
+                                  decoration: const InputDecoration(labelText: 'Nueva Contraseña (mínimo 6)'),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+                                    onPressed: () {
+                                      if (passCtrl.text.length >= 6) Navigator.pop(ctx, true);
+                                    },
+                                    child: const Text('Guardar', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(usuario.activo ? 'Cuenta Activa' : 'Cuenta Inactiva', style: TextStyle(color: usuario.activo ? AppColors.success : AppColors.error)),
-                            ],
-                          ),
+                            );
 
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.usuariosColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(usuario.rol, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
+                            if (confirm == true && mounted) {
+                              final exito = await context.read<UsuariosService>().resetPassword(u.id, passCtrl.text);
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(exito ? 'Contraseña actualizada' : 'Error al actualizar: ${context.read<UsuariosService>().error}'),
+                                backgroundColor: exito ? Colors.green : Colors.red,
+                              ));
+                            }
+                          },
                         ),
-                      );
-                    },
+                        // BOTÓN ELIMINAR USUARIO
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.redAccent),
+                          onPressed: () async {
+                            final conf = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: const Color(0xFF1E293B),
+                                title: const Text('Eliminar Usuario', style: TextStyle(color: Colors.white)),
+                                content: const Text('¿Borrar definitivamente el acceso de este usuario? No podrá volver a entrar a ninguna app.', style: TextStyle(color: Colors.white70)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+                                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+                                ],
+                              ),
+                            );
+                            if (conf == true && mounted) {
+                              final exito = await context.read<UsuariosService>().deleteUsuario(u.id);
+                              if (!exito && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${context.read<UsuariosService>().error}'), backgroundColor: Colors.red));
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.teal,
+        onPressed: _mostrarFormulario,
+        child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );
   }

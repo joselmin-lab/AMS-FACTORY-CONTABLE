@@ -121,6 +121,12 @@ class AppDrawer extends StatelessWidget {
                   currentRoute: currentRoute,
                   color: AppColors.usuariosColor,
                 ),
+                _buildNavItem(
+                  context: context, 
+                  icon: Icons.group, 
+                  label: 'Clientes', 
+                  route: AppRoutes.clientes, 
+                  currentRoute: currentRoute, color: Colors.teal),
               ],
             ),
           ),

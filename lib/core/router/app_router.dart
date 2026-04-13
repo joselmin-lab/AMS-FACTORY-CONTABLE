@@ -19,6 +19,7 @@ import '../../screens/salidas/crear_salida_screen.dart';
 import '../../screens/ingresos/ingresos_screen.dart';
 import '../../screens/ingresos/crear_ingreso_screen.dart';
 import '../../screens/reportes/reportes_screen.dart'; 
+import 'package:ams_control_contable/screens/clientes/clientes_screen.dart';
 
 class AppRoutes {
   static const String login = '/login';
@@ -40,6 +41,7 @@ class AppRoutes {
   static const String pagar = '/pagar';
   static const String usuarios = '/usuarios';
   static const String reportes = '/reportes';
+  static const String clientes = '/clientes';
 }
 
 class AppRouter {
@@ -58,7 +60,9 @@ class AppRouter {
       case AppRoutes.crearVenta:
         return MaterialPageRoute(builder: (_) => const CrearVentaScreen(), settings: settings);
       case AppRoutes.reportes:
-        return MaterialPageRoute(builder: (_) => const ReportesScreen()); // <--- EN LA SECCIÓN DEL SWITCH
+        return MaterialPageRoute(builder: (_) => const ReportesScreen()); 
+      case AppRoutes.clientes:
+        return MaterialPageRoute(builder: (_) => const ClientesScreen());
       case AppRoutes.importaciones:
         return MaterialPageRoute(builder: (_) => const ImportacionesScreen(), settings: settings);
       case AppRoutes.crearImportacion:

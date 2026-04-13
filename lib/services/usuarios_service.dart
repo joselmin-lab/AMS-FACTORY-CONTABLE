@@ -1,60 +1,72 @@
 import 'package:flutter/foundation.dart';
+import 'package:ams_control_contable/models/usuario.dart';
 import 'package:ams_control_contable/services/supabase_service.dart';
-
-class Usuario {
-  final String id;
-  final String nombre;
-  final String rol;
-  final bool activo; // Usamos tu columna 'activo'
-
-  Usuario({
-    required this.id,
-    required this.nombre,
-    required this.rol,
-    required this.activo,
-  });
-
-  factory Usuario.fromJson(Map<String, dynamic> json) {
-    return Usuario(
-      id: json['id']?.toString() ?? '',
-      nombre: json['nombre']?.toString() ?? 'Sin nombre',
-      rol: json['rol']?.toString() ?? '',
-      activo: json['activo'] == true, // Leemos tu columna booleana
-    );
-  }
-}
 
 class UsuariosService extends ChangeNotifier {
   List<Usuario> _usuarios = [];
   bool _isLoading = false;
   String? _error;
 
-  List<Usuario> get usuarios => List.unmodifiable(_usuarios);
+  List<Usuario> get usuarios => _usuarios;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  Future<void> fetchAdmins() async {
+  Future<void> fetchUsuarios() async {
     _isLoading = true;
-    _error = null;
     notifyListeners();
-
     try {
-      // 1. Consultamos tu tabla trayendo solo los que tienen rol ADMIN
-      final response = await SupabaseService.client
-          .from('perfiles')
-          .select('id, nombre, rol, activo') // Tus columnas exactas
-          .eq('rol', 'ADMIN') // Buscamos exactamente 'ADMIN' en mayúscula como en tu BD
-          .order('nombre');
-
-      _usuarios = (response as List)
-          .map((e) => Usuario.fromJson(e as Map<String, dynamic>))
-          .toList();
-
+      final response = await SupabaseService.client.from('vw_usuarios').select().order('created_at', ascending: false);
+      _usuarios = (response as List).map((e) => Usuario.fromJson(e)).toList();
+      _error = null;
     } catch (e) {
-      _error = "Error al cargar: $e";
+      _error = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<bool> createUsuario(String email, String password, String nombre, String telefono) async {
+    try {
+      await SupabaseService.client.rpc('crear_usuario_admin', params: {
+        'email_input': email,
+        'password_input': password,
+        'nombre_input': nombre,
+        'telefono_input': telefono.isNotEmpty ? telefono : null,
+      });
+      await fetchUsuarios();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteUsuario(String id) async {
+    try {
+      await SupabaseService.client.rpc('eliminar_usuario', params: {'uid': id});
+      _usuarios.removeWhere((u) => u.id == id);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(String id, String nuevaPassword) async {
+    try {
+      await SupabaseService.client.rpc('actualizar_password_admin', params: {
+        'uid': id,
+        'new_password': nuevaPassword,
+      });
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 }
