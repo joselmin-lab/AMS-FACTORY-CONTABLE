@@ -3,6 +3,7 @@ class Usuario {
   final String? email;
   final String? nombre;
   final String? phone;
+  final String? rol; // <-- Nuevo
   final DateTime? createdAt;
 
   Usuario({
@@ -10,6 +11,7 @@ class Usuario {
     this.email,
     this.nombre,
     this.phone,
+    this.rol, // <-- Nuevo
     this.createdAt,
   });
 
@@ -19,6 +21,7 @@ class Usuario {
       email: json['email']?.toString(),
       nombre: json['nombre']?.toString(),
       phone: json['phone']?.toString(),
+      rol: json['rol']?.toString(), // <-- Nuevo
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : null,
     );
   }

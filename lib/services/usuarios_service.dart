@@ -26,13 +26,14 @@ class UsuariosService extends ChangeNotifier {
     }
   }
 
-  Future<bool> createUsuario(String email, String password, String nombre, String telefono) async {
+    Future<bool> createUsuario(String email, String password, String nombre, String telefono, String rol) async {
     try {
       await SupabaseService.client.rpc('crear_usuario_admin', params: {
         'email_input': email,
         'password_input': password,
         'nombre_input': nombre,
         'telefono_input': telefono.isNotEmpty ? telefono : null,
+        'rol_input': rol, // <-- ENVIAMOS EL ROL
       });
       await fetchUsuarios();
       return true;
@@ -42,7 +43,6 @@ class UsuariosService extends ChangeNotifier {
       return false;
     }
   }
-
   Future<bool> deleteUsuario(String id) async {
     try {
       await SupabaseService.client.rpc('eliminar_usuario', params: {'uid': id});

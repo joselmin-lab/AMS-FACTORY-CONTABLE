@@ -19,51 +19,144 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     });
   }
 
-  void _mostrarFormulario() {
+    void _mostrarFormulario() {
     final emailCtrl = TextEditingController();
     final passCtrl = TextEditingController();
     final nombreCtrl = TextEditingController();
     final telefonoCtrl = TextEditingController();
+    String rolSeleccionado = 'OPERADOR'; 
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Nuevo Usuario / Empleado', style: TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre Completo'), style: const TextStyle(color: Colors.white)),
-              TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email de acceso'), style: const TextStyle(color: Colors.white)),
-              TextField(controller: passCtrl, decoration: const InputDecoration(labelText: 'Contraseña (mínimo 6)'), obscureText: true, style: const TextStyle(color: Colors.white)),
-              TextField(controller: telefonoCtrl, decoration: const InputDecoration(labelText: 'Teléfono (Opcional)'), style: const TextStyle(color: Colors.white)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B), // Fondo del diálogo
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Nuevo Usuario', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // CAMPO NOMBRE
+                  TextField(
+                    controller: nombreCtrl, 
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Nombre Completo',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A), // Fondo oscuro para el input
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), // Sin borde feo
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.tealAccent, width: 1.5)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16), // Espacio adentro
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // CAMPO EMAIL
+                  TextField(
+                    controller: emailCtrl, 
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Email de acceso',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.tealAccent, width: 1.5)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // CAMPO CONTRASEÑA
+                  TextField(
+                    controller: passCtrl, 
+                    obscureText: true, 
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña (mínimo 6)',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.tealAccent, width: 1.5)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // CAMPO TELÉFONO
+                  TextField(
+                    controller: telefonoCtrl, 
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Teléfono (Opcional)',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.tealAccent, width: 1.5)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // DROPDOWN PARA EL ROL
+                  DropdownButtonFormField<String>(
+                    dropdownColor: const Color(0xFF1E293B),
+                    value: rolSeleccionado,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      labelText: 'Rol del Sistema',
+                      labelStyle: const TextStyle(color: Colors.tealAccent),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.tealAccent, width: 1.5)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'OPERADOR', child: Text('OPERADOR (Acceso normal)')),
+                      DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN (Acceso total)', style: TextStyle(color: Colors.amber))),
+                    ],
+                    onChanged: (val) {
+                      setStateDialog(() { rolSeleccionado = val!; });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () async {
+                  if (emailCtrl.text.isEmpty || passCtrl.text.length < 6) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Revisa el email y la contraseña')));
+                    return;
+                  }
+                  
+                  final service = context.read<UsuariosService>();
+                  final exito = await service.createUsuario(emailCtrl.text, passCtrl.text, nombreCtrl.text, telefonoCtrl.text, rolSeleccionado);
+                  
+                  if (exito && mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Usuario $rolSeleccionado creado'), backgroundColor: Colors.green));
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${service.error}'), backgroundColor: Colors.red));
+                  }
+                },
+                child: const Text('Crear Usuario', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            onPressed: () async {
-              if (emailCtrl.text.isEmpty || passCtrl.text.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email inválido o contraseña muy corta')));
-                return;
-              }
-              
-              final service = context.read<UsuariosService>();
-              final exito = await service.createUsuario(emailCtrl.text, passCtrl.text, nombreCtrl.text, telefonoCtrl.text);
-              
-              if (exito && mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario creado con éxito'), backgroundColor: Colors.green));
-              } else if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${service.error}'), backgroundColor: Colors.red));
-              }
-            },
-            child: const Text('Crear Usuario', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+          );
+        }
       ),
     );
   }

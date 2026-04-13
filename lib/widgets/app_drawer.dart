@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
 import 'package:ams_control_contable/core/constants/app_strings.dart';
 import 'package:ams_control_contable/core/router/app_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -130,6 +131,41 @@ class AppDrawer extends StatelessWidget {
               ],
             ),
           ),
+          const Divider(height: 1, color: Colors.black12),
+          Container(
+            color: const Color(0xFF1E293B), // Fondo oscuro para que resalte
+            child: ListTile(
+              leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
+              title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              onTap: () async {
+                // Confirmación antes de salir
+                final confirmar = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('¿Cerrar Sesión?'),
+                    content: const Text('¿Estás seguro que deseas salir de tu cuenta?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true), 
+                        child: const Text('Salir', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmar == true && context.mounted) {
+                  // Cierra sesión en Supabase
+                  await Supabase.instance.client.auth.signOut();
+                  // Lo manda a la pantalla de login borrando todo el historial de navegación
+                  if (context.mounted) {
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                  }
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 16), // Espacio abajo para que no pegue con el borde del teléfono
           _buildFooter(context),
         ],
       ),
