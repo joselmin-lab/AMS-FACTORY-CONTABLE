@@ -98,7 +98,7 @@ class CuentasCobrarService extends ChangeNotifier {
       // 5. REGISTRAMOS EL INGRESO DE DINERO A CAJA (Nueva tabla)
       await SupabaseService.client.from('ingresos_contable').insert({
         'detalle': 'Abono de deuda: ${cuenta.cliente}',
-        'monto': montoAbono,
+        'precio': montoAbono,
         'metodo_pago': metodoPago,
         'referencia_id': id,
         'fecha': DateTime.now().toIso8601String(),

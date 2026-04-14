@@ -29,20 +29,35 @@ class _ClientesScreenState extends State<ClientesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: Text(isEditing ? 'Editar Cliente' : 'Nuevo Cliente', style: const TextStyle(color: Colors.white)),
+        // Quitamos los colores oscuros forzados para que use el tema general
+        title: Text(isEditing ? 'Editar Cliente' : 'Nuevo Cliente'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre Completo'), style: const TextStyle(color: Colors.white)),
-              TextField(controller: telefonoCtrl, decoration: const InputDecoration(labelText: 'Teléfono'), style: const TextStyle(color: Colors.white)),
-              TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email'), style: const TextStyle(color: Colors.white)),
+              // Quitamos los TextStyle(color: Colors.white)
+              TextField(
+                controller: nombreCtrl, 
+                decoration: const InputDecoration(labelText: 'Nombre Completo')
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: telefonoCtrl, 
+                decoration: const InputDecoration(labelText: 'Teléfono')
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailCtrl, 
+                decoration: const InputDecoration(labelText: 'Email')
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text('Cancelar', style: TextStyle(color: Colors.red))
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
             onPressed: () async {
@@ -76,10 +91,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final service = context.watch<ClientesService>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text('Directorio de Clientes', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: Colors.teal, // Color corporativo acorde al resto de tu app
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       drawer: const AppDrawer(),
@@ -91,34 +105,37 @@ class _ClientesScreenState extends State<ClientesScreen> {
               itemBuilder: (context, index) {
                 final c = service.clientes[index];
                 return Card(
-                  color: const Color(0xFF1E293B),
-                  margin: const EdgeInsets.only(bottom: 12),
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
-                    leading: const CircleAvatar(backgroundColor: Colors.teal, child: Icon(Icons.person, color: Colors.white)),
-                    title: Text(c.nombre, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Text('Tel: ${c.telefono ?? "S/N"} | Email: ${c.email ?? "S/N"}', style: const TextStyle(color: Colors.white70)),
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.teal,
+                      child: Icon(Icons.person, color: Colors.white),
+                    ),
+                    title: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('${c.telefono ?? 'Sin teléfono'} | ${c.email ?? 'Sin email'}'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(icon: const Icon(Icons.edit, color: Colors.blueAccent), onPressed: () => _mostrarFormulario(c)),
                         IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.redAccent),
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _mostrarFormulario(c),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () async {
-                            final conf = await showDialog<bool>(
+                            final confirmar = await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                backgroundColor: const Color(0xFF1E293B),
-                                title: const Text('Eliminar', style: TextStyle(color: Colors.white)),
-                                content: const Text('¿Eliminar este cliente?', style: TextStyle(color: Colors.white70)),
+                                title: const Text('Confirmar'),
+                                content: const Text('¿Eliminar este cliente?'),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-                                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: Colors.red))),
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+                                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sí, eliminar', style: TextStyle(color: Colors.red))),
                                 ],
                               ),
                             );
-                            if (conf == true && mounted) {
-                              final exito = await context.read<ClientesService>().deleteCliente(c.id!);
-                              if (!exito && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.read<ClientesService>().error ?? 'Error'), backgroundColor: Colors.red));
+                            if (confirmar == true && mounted) {
+                              await context.read<ClientesService>().deleteCliente(c.id!);
                             }
                           },
                         ),
