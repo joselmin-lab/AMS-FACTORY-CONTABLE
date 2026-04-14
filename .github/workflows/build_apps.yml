@@ -1,0 +1,72 @@
+name: Construir APK e IPA
+
+# Esto permite que el proceso se ejecute manualmente desde la página de GitHub
+on:
+  workflow_dispatch:
+
+jobs:
+  # ==========================================
+  # TRABAJO 1: CONSTRUIR ANDROID (APK)
+  # ==========================================
+  build-android:
+    name: Compilar Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Instalar dependencias
+        run: flutter pub get
+
+      - name: Compilar APK (Release)
+        run: flutter build apk --release
+
+      - name: Subir APK generado
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMS-Administracion-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  # ==========================================
+  # TRABAJO 2: CONSTRUIR iOS (IPA NO FIRMADO)
+  # ==========================================
+  build-ios:
+    name: Compilar iOS IPA
+    runs-on: macos-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Instalar dependencias
+        run: flutter pub get
+
+      - name: Compilar iOS (Sin firma)
+        run: flutter build ios --release --no-codesign
+
+      - name: Empaquetar en formato IPA
+        run: |
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r AMS-Administracion-IOS.ipa Payload
+
+      - name: Subir IPA generado
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMS-Administracion-IPA
+          path: AMS-Administracion-IOS.ipa
