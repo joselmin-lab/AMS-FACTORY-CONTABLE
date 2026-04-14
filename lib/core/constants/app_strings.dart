@@ -3,8 +3,8 @@ class AppStrings {
 
   static const String appLocale = 'es';
   static const String currencySymbol = 'Bs.';
-  static const String appName = 'AMS Control Contable';
-  static const String appSubtitle = 'Fábrica de Amortiguadores';
+  static const String appName = 'AMS ADMINISTRACIÓN';
+  static const String appSubtitle = ''; // Lo dejamos vacío para que no se vea
 
   // Navigation
   static const String dashboard = 'Dashboard';

@@ -127,49 +127,51 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.group, 
                   label: 'Clientes', 
                   route: AppRoutes.clientes, 
-                  currentRoute: currentRoute, color: Colors.teal),
+                  currentRoute: currentRoute, 
+                  color: Colors.teal
+                ),
+                
+                // --- BOTON CERRAR SESION PEGADO DEBAJO DE CLIENTES ---
+                const SizedBox(height: 20),
+                const Divider(height: 1, color: Colors.black12),
+                Container(
+                  color: const Color(0xFF1E293B), // Fondo oscuro para que resalte
+                  child: ListTile(
+                    leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
+                    title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    onTap: () async {
+                      final confirmar = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('¿Cerrar Sesión?'),
+                          content: const Text('¿Estás seguro que deseas salir de tu cuenta?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true), 
+                              child: const Text('Salir', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmar == true && context.mounted) {
+                        await Supabase.instance.client.auth.signOut();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                        }
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 40), // Espacio extra al final del scroll
               ],
             ),
           ),
-          const Divider(height: 1, color: Colors.black12),
-          Container(
-            color: const Color(0xFF1E293B), // Fondo oscuro para que resalte
-            child: ListTile(
-              leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
-              title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-              onTap: () async {
-                // Confirmación antes de salir
-                final confirmar = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('¿Cerrar Sesión?'),
-                    content: const Text('¿Estás seguro que deseas salir de tu cuenta?'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true), 
-                        child: const Text('Salir', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
-                      ),
-                    ],
-                  ),
-                );
-
-                if (confirmar == true && context.mounted) {
-                  // Cierra sesión en Supabase
-                  await Supabase.instance.client.auth.signOut();
-                  // Lo manda a la pantalla de login borrando todo el historial de navegación
-                  if (context.mounted) {
-                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                  }
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 16), // Espacio abajo para que no pegue con el borde del teléfono
-          _buildFooter(context),
         ],
-      ),
-    );
+        ),
+      );
+    }
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -271,28 +273,4 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.grey[200]!),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.factory_rounded,
-              size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Text(
-            'AMS Factory v1.0',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+  
