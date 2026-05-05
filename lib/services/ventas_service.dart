@@ -46,6 +46,18 @@ class VentasService extends ChangeNotifier {
     }
   }
 
+  Future<bool> createVentas(List<Venta> ventas) async {
+    try {
+      await SupabaseService.client.from(_table).insert(ventas.map((v) => v.toJson()).toList());
+      await fetchVentas();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> updateVenta(Venta venta) async {
     try {
       await SupabaseService.client

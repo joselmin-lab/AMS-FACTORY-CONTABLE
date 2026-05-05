@@ -48,6 +48,18 @@ class ComprasService extends ChangeNotifier {
     }
   }
 
+  Future<bool> createCompras(List<Compra> compras) async {
+    try {
+      await SupabaseService.client.from(_table).insert(compras.map((c) => c.toJson()).toList());
+      await fetchCompras();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> updateCompra(Compra compra) async {
     try {
       await SupabaseService.client

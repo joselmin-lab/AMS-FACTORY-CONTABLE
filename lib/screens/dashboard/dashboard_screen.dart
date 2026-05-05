@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
-import 'package:ams_control_contable/core/router/app_router.dart';
 import 'package:ams_control_contable/widgets/app_drawer.dart';
 import 'package:ams_control_contable/models/cuenta_pagar.dart';
 
@@ -348,56 +347,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-
-            const Text('Navegación', style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 1.2)),
-            const SizedBox(height: 16),
-            _buildModuleGrid(context, cardColor),
             const SizedBox(height: 40),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildModuleGrid(BuildContext context, Color cardColor) {
-    final modules = [
-      _ModuleItem('Compras', Icons.shopping_bag_outlined, Colors.blueAccent, AppRoutes.compras),
-      _ModuleItem('Ventas', Icons.sell_outlined, Colors.greenAccent, AppRoutes.ventas),
-      _ModuleItem('Cobrar', Icons.account_balance_wallet_outlined, Colors.orangeAccent, AppRoutes.cobrar),
-      _ModuleItem('Pagar', Icons.credit_card_off_outlined, Colors.redAccent, AppRoutes.pagar),
-      _ModuleItem('Impuestos', Icons.request_quote_outlined, Colors.deepPurpleAccent, AppRoutes.impositivo),
-      _ModuleItem('Gastos', Icons.money_off_outlined, Colors.pinkAccent, AppRoutes.gastos),
-      _ModuleItem('Importar', Icons.flight_land_rounded, Colors.cyanAccent, AppRoutes.importaciones),
-      _ModuleItem('Personal', Icons.people_outline_rounded, Colors.grey, AppRoutes.usuarios),
-      _ModuleItem('Importar', Icons.flight_land_rounded, Colors.cyanAccent, AppRoutes.importaciones),
-      _ModuleItem('Reportes', Icons.analytics_outlined, Colors.amberAccent, AppRoutes.reportes), // <--- AGREGAR ESTO
-      _ModuleItem('Personal', Icons.people_outline_rounded, Colors.grey, AppRoutes.usuarios),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, childAspectRatio: 0.8, mainAxisSpacing: 12, crossAxisSpacing: 12),
-      itemCount: modules.length,
-      itemBuilder: (context, index) {
-        final mod = modules[index];
-        return InkWell(
-          onTap: () => Navigator.pushNamed(context, mod.route),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(mod.icon, color: mod.color, size: 28),
-                const SizedBox(height: 8),
-                Text(mod.label, style: const TextStyle(color: Colors.white70, fontSize: 11), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -456,12 +409,4 @@ class _DashboardCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ModuleItem {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final String route;
-  _ModuleItem(this.label, this.icon, this.color, this.route);
 }
