@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
 import 'package:ams_control_contable/core/constants/app_strings.dart';
 import 'package:ams_control_contable/models/venta.dart';
 import 'package:ams_control_contable/services/ventas_service.dart';
 import 'package:ams_control_contable/services/supabase_service.dart';
+
+/// Represents a single product line in the sale form.
+class _LineaVenta {
+  Map<String, dynamic>? selectedItem;
+  final TextEditingController cantidadCtrl;
+  final TextEditingController precioCtrl;
+
+  _LineaVenta()
+      : cantidadCtrl = TextEditingController(),
+        precioCtrl = TextEditingController();
+
+  double get subtotal {
+    final qty = double.tryParse(cantidadCtrl.text) ?? 0;
+    final price = double.tryParse(precioCtrl.text) ?? 0;
+    return qty * price;
+  }
+
+  void dispose() {
+    cantidadCtrl.dispose();
+    precioCtrl.dispose();
+  }
+}
 
 class CrearVentaScreen extends StatefulWidget {
   const CrearVentaScreen({super.key});
@@ -17,17 +38,16 @@ class CrearVentaScreen extends StatefulWidget {
 class _CrearVentaScreenState extends State<CrearVentaScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final _cantidadCtrl = TextEditingController();
-  final _precioCtrl = TextEditingController();
   final _clienteCtrl = TextEditingController();
   final _notasCtrl = TextEditingController();
 
   bool _facturado = false;
   String _metodoPago = AppStrings.pagoEfectivo;
   bool _isLoadingItems = true;
+  bool _isSaving = false;
 
   List<Map<String, dynamic>> _inventoryItems = [];
-  Map<String, dynamic>? _selectedItem;
+  final List<_LineaVenta> _lineas = [];
 
   static const List<String> _metodosPago = [
     AppStrings.pagoQR,
@@ -40,6 +60,7 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
   void initState() {
     super.initState();
     _loadInventoryItems();
+    _lineas.add(_LineaVenta()); // Start with one line
   }
 
   Future<void> _loadInventoryItems() async {
@@ -47,9 +68,8 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
       final response = await SupabaseService.client
           .from('inventario')
           .select('id, codigo, nombre, stock_actual, categoria')
-          // En ventas, generalmente se vende PRODUCTO_FINAL o PARTE 
           .order('nombre');
-      
+
       if (mounted) {
         setState(() {
           _inventoryItems = List<Map<String, dynamic>>.from(response);
@@ -63,46 +83,76 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
 
   @override
   void dispose() {
-    _cantidadCtrl.dispose();
-    _precioCtrl.dispose();
     _clienteCtrl.dispose();
     _notasCtrl.dispose();
+    for (final linea in _lineas) {
+      linea.dispose();
+    }
     super.dispose();
   }
 
-  void _guardarVenta() {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedItem == null) {
+  void _addLinea() {
+    setState(() => _lineas.add(_LineaVenta()));
+  }
+
+  void _removeLinea(int index) {
+    setState(() {
+      _lineas[index].dispose();
+      _lineas.removeAt(index);
+    });
+  }
+
+  double get _totalGeneral =>
+      _lineas.fold(0.0, (sum, l) => sum + l.subtotal);
+
+  Future<void> _guardarVenta() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Validate each line has a selected item
+    for (int i = 0; i < _lineas.length; i++) {
+      if (_lineas[i].selectedItem == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Debe seleccionar un producto del inventario', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Línea ${i + 1}: debe seleccionar un producto del inventario'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
+    }
 
-      final cantidad = double.parse(_cantidadCtrl.text);
-      final stockActual = (_selectedItem!['stock_actual'] as num?)?.toDouble() ?? 0;
+    setState(() => _isSaving = true);
 
-      // Validación opcional: No dejar vender si no hay stock
-      if (cantidad > stockActual) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Atención: Está vendiendo más stock del disponible ($stockActual).', style: const TextStyle(color: Colors.white)), backgroundColor: Colors.orange),
-        );
-      }
-
-      final nuevaVenta = Venta(
-        id: null, // Que Supabase genere el ID
-        parteId: _selectedItem!['id'].toString(),
-        parteNombre: _selectedItem!['nombre'] ?? 'Sin nombre',
+    final ahora = DateTime.now();
+    final notasTrimmed = _notasCtrl.text.trim();
+    final ventas = _lineas.map((linea) {
+      final cantidad = double.parse(linea.cantidadCtrl.text);
+      final precio = double.parse(linea.precioCtrl.text);
+      return Venta(
+        id: null,
+        parteId: linea.selectedItem!['id'].toString(),
+        parteNombre: linea.selectedItem!['nombre'] ?? 'Sin nombre',
         cantidad: cantidad,
-        precio: double.parse(_precioCtrl.text),
+        precio: precio,
         facturado: _facturado,
         cliente: _clienteCtrl.text.trim(),
         metodoPago: _metodoPago,
-        fecha: DateTime.now(),
+        fecha: ahora,
+        notas: notasTrimmed.isEmpty ? null : notasTrimmed,
       );
+    }).toList();
 
-      context.read<VentasService>().createVenta(nuevaVenta);
-      Navigator.pop(context);
+    final ok = await context.read<VentasService>().createVentas(ventas);
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      if (ok) {
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al guardar la venta'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -121,52 +171,9 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Text('Detalle del Producto a Vender', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  const SizedBox(height: 12),
-                  Autocomplete<Map<String, dynamic>>(
-                    displayStringForOption: (o) => '[${o['codigo']}] ${o['nombre']} (Stock: ${o['stock_actual']})',
-                    optionsBuilder: (v) => v.text.isEmpty
-                        ? _inventoryItems
-                        : _inventoryItems.where((i) => '${i['codigo']} ${i['nombre']}'.toLowerCase().contains(v.text.toLowerCase())),
-                    onSelected: (s) => setState(() => _selectedItem = s),
-                    fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-                      return TextFormField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        onEditingComplete: onEditingComplete,
-                        decoration: const InputDecoration(
-                          labelText: 'Producto (VENTA)',
-                          hintText: 'Escriba para buscar...',
-                          prefixIcon: Icon(Icons.search_rounded),
-                        ),
-                        validator: (v) => _selectedItem == null ? 'Debe buscar y seleccionar un producto' : null,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _cantidadCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Cantidad', prefixIcon: Icon(Icons.numbers)),
-                          validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _precioCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Precio de Venta', prefixText: 'Bs. '),
-                          validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Información de Venta', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  // --- INFORMACIÓN GENERAL ---
+                  const Text('Información de Venta',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _clienteCtrl,
@@ -181,7 +188,6 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
                     onChanged: (v) => setState(() => _metodoPago = v!),
                   ),
                   const SizedBox(height: 16),
-                  // 2. REEMPLAZA EL CHECKBOX POR EL SWITCH
                   SwitchListTile(
                     title: const Text('¿Venta Facturada?'),
                     subtitle: const Text('Activa si se emitió factura al cliente con NIT'),
@@ -190,19 +196,163 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
                     activeColor: AppColors.ventasColor,
                     contentPadding: EdgeInsets.zero,
                   ),
+
                   const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // --- LÍNEAS DE PRODUCTOS ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Productos a Vender',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text('${_lineas.length} ítem(s)', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Line items
+                  for (int i = 0; i < _lineas.length; i++) _buildLineaWidget(i),
+
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _addLinea,
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text('Añadir producto'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.ventasColor,
+                      side: const BorderSide(color: AppColors.ventasColor),
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // --- TOTAL ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Venta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(
+                        'Bs. ${_totalGeneral.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.ventasColor),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
                   SizedBox(
                     height: 50,
                     child: ElevatedButton.icon(
-                      onPressed: _guardarVenta,
+                      onPressed: _isSaving ? null : _guardarVenta,
                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.ventasColor, foregroundColor: Colors.white),
-                      icon: const Icon(Icons.save),
-                      label: const Text('Guardar Venta', style: TextStyle(fontSize: 16)),
+                      icon: _isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.save),
+                      label: Text(_isSaving ? 'Guardando...' : 'Guardar Venta', style: const TextStyle(fontSize: 16)),
                     ),
                   ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildLineaWidget(int index) {
+    final linea = _lineas[index];
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Producto ${index + 1}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Spacer(),
+                if (_lineas.length > 1)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                    tooltip: 'Eliminar línea',
+                    onPressed: () => _removeLinea(index),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Autocomplete<Map<String, dynamic>>(
+              displayStringForOption: (o) => '[${o['codigo']}] ${o['nombre']} (Stock: ${o['stock_actual']})',
+              optionsBuilder: (v) => v.text.isEmpty
+                  ? _inventoryItems
+                  : _inventoryItems.where((i) =>
+                      '${i['codigo']} ${i['nombre']}'.toLowerCase().contains(v.text.toLowerCase())),
+              onSelected: (s) => setState(() => linea.selectedItem = s),
+              fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+                return TextFormField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onEditingComplete: onEditingComplete,
+                  decoration: const InputDecoration(
+                    labelText: 'Producto',
+                    hintText: 'Escriba para buscar...',
+                    prefixIcon: Icon(Icons.search_rounded),
+                    isDense: true,
+                  ),
+                  validator: (_) => linea.selectedItem == null ? 'Seleccione un producto' : null,
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: linea.cantidadCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Cantidad', prefixIcon: Icon(Icons.numbers), isDense: true),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Requerido';
+                      final qty = double.tryParse(v);
+                      if (qty == null || qty <= 0) return 'Debe ser > 0';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: linea.precioCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Precio Unitario', prefixText: 'Bs. ', isDense: true),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Requerido';
+                      if (double.tryParse(v) == null) return 'Inválido';
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Subtotal: Bs. ${linea.subtotal.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.ventasColor),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
