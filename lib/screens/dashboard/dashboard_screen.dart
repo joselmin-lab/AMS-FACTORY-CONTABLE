@@ -105,8 +105,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     final totalVentasContado = ventas.where((v) => v.metodoPago != 'Crédito').fold(0.0, (sum, v) => sum + (v.precio * v.cantidad));
     final totalIngresosExtra = ingresos.fold(0.0, (sum, i) => sum + i.precio);
-    final totalCobrosRealizados = cuentasCobrar.fold(0.0, (sum, c) => sum + c.montoPagado);
-    final totalEntradas = totalVentasContado + totalIngresosExtra + totalCobrosRealizados;
+    // Nota: los abonos a Cuentas por Cobrar ya se registran automáticamente
+    // como filas en `ingresos_contable` desde CuentasCobrarService.registrarPago,
+    // por lo que NO debemos volver a sumarlos aquí (evita doble conteo).
+    final totalEntradas = totalVentasContado + totalIngresosExtra;
 
     final compras = context.watch<ComprasService>().compras;
     final salidas = context.watch<SalidasService>().salidas;
@@ -114,8 +116,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final totalComprasContado = compras.where((c) => c.metodoPago != 'Crédito').fold(0.0, (sum, c) => sum + (c.precio * c.cantidad));
     final totalSalidasExtra = salidas.fold(0.0, (sum, s) => sum + s.precio);
-    final totalPagosRealizados = cuentasPagar.fold(0.0, (sum, c) => sum + c.montoPagado);
-    final totalSalidasCaja = totalComprasContado + totalSalidasExtra + totalPagosRealizados;
+    // Nota: los abonos a Cuentas por Pagar ya se registran automáticamente
+    // como filas en `salidas_contable` desde CuentasPagarService.registrarPago,
+    // por lo que NO debemos volver a sumarlos aquí (evita doble conteo).
+    final totalSalidasCaja = totalComprasContado + totalSalidasExtra;
 
     final saldoEnCaja = totalEntradas - totalSalidasCaja;
     final dineroEnLaCalle = cuentasCobrar.fold(0.0, (sum, c) => sum + c.saldoPendiente);
