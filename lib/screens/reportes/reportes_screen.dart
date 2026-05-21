@@ -103,13 +103,23 @@ class _ReportesScreenState extends State<ReportesScreen> {
       final cuentasCobrar = context.read<CuentasCobrarService>().cuentas;
       final cuentasPagar = context.read<CuentasPagarService>().cuentas;
       
-      final totalEntradas = ventas.where((v) => v.metodoPago != 'Crédito' && _esMesSeleccionado(v.fecha)).fold(0.0, (sum, v) => sum + (v.precio * v.cantidad)) + 
-                            ingresos.where((i) => _esMesSeleccionado(i.fecha)).fold(0.0, (sum, i) => sum + i.precio) + 
-                            cuentasCobrar.where((c) => _esMesSeleccionado(c.fechaEmision)).fold(0.0, (sum, c) => sum + c.montoPagado);
-                            
-      final totalSalidas = compras.where((c) => c.metodoPago != 'Crédito' && _esMesSeleccionado(c.fecha)).fold(0.0, (sum, c) => sum + (c.precio * c.cantidad)) + 
-                           salidas.where((s) => _esMesSeleccionado(s.fecha)).fold(0.0, (sum, s) => sum + s.precio) + 
-                           cuentasPagar.where((c) => _esMesSeleccionado(c.fechaEmision)).fold(0.0, (sum, c) => sum + c.montoPagado);
+      // Los abonos a Cuentas por Cobrar/Pagar ya entran como filas en
+      // `ingresos_contable` / `salidas_contable` (ver CuentasCobrarService y
+      // CuentasPagarService → registrarPago). NO sumarlos otra vez aquí
+      // para evitar el doble conteo en el saldo de caja del mes.
+      final totalEntradas = ventas
+              .where((v) => v.metodoPago != 'Crédito' && _esMesSeleccionado(v.fecha))
+              .fold(0.0, (sum, v) => sum + (v.precio * v.cantidad)) +
+          ingresos
+              .where((i) => _esMesSeleccionado(i.fecha))
+              .fold(0.0, (sum, i) => sum + i.precio);
+
+      final totalSalidas = compras
+              .where((c) => c.metodoPago != 'Crédito' && _esMesSeleccionado(c.fecha))
+              .fold(0.0, (sum, c) => sum + (c.precio * c.cantidad)) +
+          salidas
+              .where((s) => _esMesSeleccionado(s.fecha))
+              .fold(0.0, (sum, s) => sum + s.precio);
 
       final saldoEnCaja = totalEntradas - totalSalidas;
       final dineroEnLaCalle = cuentasCobrar.fold(0.0, (sum, c) => sum + c.saldoPendiente);
