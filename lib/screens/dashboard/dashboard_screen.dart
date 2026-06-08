@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:ams_control_contable/core/constants/app_colors.dart';
+import 'package:ams_control_contable/core/utils/iva_consolidado_helper.dart';
 import 'package:ams_control_contable/widgets/app_drawer.dart';
 import 'package:ams_control_contable/models/cuenta_pagar.dart';
 
@@ -14,7 +14,6 @@ import 'package:ams_control_contable/services/cuentas_pagar_service.dart';
 import 'package:ams_control_contable/services/impositivo_service.dart';
 import 'package:ams_control_contable/services/gastos_service.dart';
 import 'package:ams_control_contable/services/importaciones_service.dart';
-import 'package:ams_control_contable/services/pdf_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -49,41 +48,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) setState(() => _isRefreshing = false);
   }
 
-  Future<void> _generarDeudasImpositivas(double ivaPagar, double itPagar, double nuevoSaldoIvaFavor, double nuevoSaldoIue) async {
+  Future<void> _registrarImpuestosAPagar(double saldoIva, double itPagar, double nuevoSaldoIue) async {
     final mesStr = DateFormat('MMMM yyyy', 'es_ES').format(DateTime.now()).toUpperCase();
     bool exito = true;
+    bool registroAlgo = false;
+    bool ivaDuplicado = false;
+    bool itDuplicado = false;
+    final cuentasPagarService = context.read<CuentasPagarService>();
 
     // 1. Generar deuda IT (Si después de compensar el IUE aún debes)
     if (itPagar > 0) {
-      final cuentaIT = CuentaPagar(
-        proveedor: 'Impuestos Nacionales (IT)',
-        montoTotal: itPagar,
-        fechaEmision: DateTime.now(),
-        notas: 'Generado automáticamente - $mesStr',
-      );
-      final res = await context.read<CuentasPagarService>().createCuenta(cuentaIT);
-      if (!res) exito = false;
+      final notasIT = 'Impuesto IT - $mesStr';
+      itDuplicado = cuentasPagarService.cuentas.any((c) => c.notas == notasIT);
+      if (!itDuplicado) {
+        final cuentaIT = CuentaPagar(
+          proveedor: 'Impuestos Nacionales (IT)',
+          montoTotal: itPagar,
+          fechaEmision: DateTime.now(),
+          notas: notasIT,
+        );
+        final res = await cuentasPagarService.createCuenta(cuentaIT);
+        if (!res) exito = false;
+        if (res) registroAlgo = true;
+      }
     }
 
     // 2. Generar deuda IVA (Solo si hubo IVA por Pagar este mes)
-    if (ivaPagar > 0) {
-      final cuentaIVA = CuentaPagar(
-        proveedor: 'Impuestos Nacionales (IVA)',
-        montoTotal: ivaPagar,
-        fechaEmision: DateTime.now(),
-        notas: 'Generado automáticamente - $mesStr',
-      );
-      final res = await context.read<CuentasPagarService>().createCuenta(cuentaIVA);
-      if (!res) exito = false;
+    if (saldoIva < 0) {
+      final notasIva = 'Impuesto IVA - $mesStr';
+      ivaDuplicado = cuentasPagarService.cuentas.any((c) => c.notas == notasIva);
+      if (!ivaDuplicado) {
+        final cuentaIVA = CuentaPagar(
+          proveedor: 'Impuestos Nacionales (IVA)',
+          montoTotal: saldoIva.abs(),
+          fechaEmision: DateTime.now(),
+          notas: notasIva,
+        );
+        final res = await cuentasPagarService.createCuenta(cuentaIVA);
+        if (!res) exito = false;
+        if (res) registroAlgo = true;
+      }
     }
 
-    // 3. ¡MAGIA! Guardar los saldos a favor (Créditos) para el mes que viene
-    await context.read<ImpositivoService>().actualizarSaldosArrastrados(nuevoSaldoIvaFavor, nuevoSaldoIue);
+    // 3. Guardar solo saldo IUE para el siguiente mes
+    await context.read<ImpositivoService>().actualizarSaldoIuePorCompensar(nuevoSaldoIue);
 
     if (mounted) {
+      final List<String> mensajes = [];
+      if (ivaDuplicado) mensajes.add('IVA ya registrado para $mesStr');
+      if (itDuplicado) mensajes.add('IT ya registrado para $mesStr');
+      if (!registroAlgo && !ivaDuplicado && !itDuplicado) {
+        mensajes.add('No hay impuestos por registrar para $mesStr');
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(exito ? 'Mes cerrado. Saldos a favor guardados y deudas generadas.' : 'Hubo un error al generar deudas.'),
+          content: Text(
+            exito
+                ? (mensajes.isNotEmpty ? mensajes.join(' • ') : 'Impuestos registrados con éxito.')
+                : 'Hubo un error al generar impuestos por pagar.',
+          ),
           backgroundColor: exito ? Colors.green : Colors.red,
         ),
       );
@@ -94,9 +118,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     bool esEsteMes(DateTime d) => d.year == now.year && d.month == now.month;
-    
-    final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
-    final esUltimoDia = now.day == lastDayOfMonth;
 
     // --- DATOS GLOBALES PARA CAJA ---
     final ventas = context.watch<VentasService>().ventas;
@@ -143,22 +164,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final baseComprasLocal = comprasFacMes + salidasFacMes + gastosFacMes;
     final ivaComprasLocal = baseComprasLocal * (configImp.ivaCompras / 100);
 
-    // Crédito Fiscal de Importaciones
-    double ivaImportacionesMes = 0;
-    for (var carpeta in importaciones) {
-      for (var gasto in carpeta.gastos) {
-        if (esEsteMes(gasto.fechaGasto)) {
-          if (gasto.tipoSistema == 'IVA') {
-            ivaImportacionesMes += gasto.montoBs;
-          } else if (gasto.tieneIva) {
-            ivaImportacionesMes += gasto.montoBs * (configImp.ivaCompras / 100);
-          }
-        }
-      }
-    }
+    final saldoArrastrado = IvaConsolidadoHelper.calcularSaldoIvaArrastrado(
+      ventas: ventas,
+      ingresos: ingresos,
+      compras: compras,
+      salidas: salidas,
+      gastos: gastos,
+      importaciones: importaciones,
+      ivaVentasPct: configImp.ivaVentas,
+      ivaComprasPct: configImp.ivaCompras,
+      mesReferencia: now,
+    );
+    final ivaImportacionesMes = IvaConsolidadoHelper.calcularIvaImportacionesMes(
+      importaciones: importaciones,
+      ivaComprasPct: configImp.ivaCompras,
+      mesReferencia: now,
+    );
 
     // LÓGICA DE SALDO IVA
-    final ivaComprasTotal = ivaComprasLocal + ivaImportacionesMes + configImp.saldoIvaAnterior; 
+    final ivaComprasMes = ivaComprasLocal + ivaImportacionesMes;
+    final ivaComprasTotal = ivaComprasMes + saldoArrastrado;
     final saldoIva = ivaComprasTotal - ivaVentasTotal; 
     // Si es Positivo: Es IVA a Favor (Crédito). Si es Negativo: Es IVA por Pagar.
 
@@ -263,19 +288,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _TaxRow('Compras Locales y Gastos:', _currencyFormat.format(baseComprasLocal), Colors.white70),
                   const SizedBox(height: 16),
                   
-                  const Align(alignment: Alignment.centerLeft, child: Text('Cálculo de Crédito y Débito', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+                  const Align(alignment: Alignment.centerLeft, child: Text('Cálculo de Crédito y Débito (Mes Actual)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
                   const Divider(color: Colors.white10, height: 24),
-                  
-                  if (configImp.saldoIvaAnterior > 0)
-                    _TaxRow('Saldo a Favor Mes Anterior', _currencyFormat.format(configImp.saldoIvaAnterior), Colors.blueAccent),
-                  
+
                   _TaxRow('Crédito F. (Compras Locales)', _currencyFormat.format(ivaComprasLocal), Colors.greenAccent.withAlpha(150)),
                   _TaxRow('Crédito F. (Importaciones)', _currencyFormat.format(ivaImportacionesMes), Colors.greenAccent.withAlpha(150)),
                   const Divider(color: Colors.white10, height: 8),
-                  
-                  _TaxRow('Total Crédito (IVA a Favor +)', _currencyFormat.format(ivaComprasTotal), Colors.greenAccent),
+                  _TaxRow('Total Crédito (Mes)', _currencyFormat.format(ivaComprasMes), Colors.greenAccent),
                   _TaxRow('Total Débito (IVA Ventas -)', _currencyFormat.format(ivaVentasTotal), Colors.redAccent),
-                  
+
+                  const SizedBox(height: 12),
+                  const Align(alignment: Alignment.centerLeft, child: Text('Consolidado', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+                  const Divider(color: Colors.white10, height: 20),
+                  _TaxRow(
+                    'Saldo IVA Arrastrado (meses ant.) ${saldoArrastrado >= 0 ? '(A FAVOR)' : '(POR PAGAR)'}',
+                    _currencyFormat.format(saldoArrastrado.abs()),
+                    saldoArrastrado >= 0 ? Colors.greenAccent : Colors.redAccent,
+                  ),
+                  _TaxRow('= SALDO IVA CONSOLIDADO', _currencyFormat.format(saldoIva.abs()), saldoIva >= 0 ? Colors.greenAccent : Colors.redAccent),
+
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 12),
                     padding: const EdgeInsets.all(12),
@@ -289,7 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
 
-                                    // COMPENSACIÓN IT vs IUE
+                  // COMPENSACIÓN IT vs IUE
                   const Divider(color: Colors.white10, height: 24),
                   const Align(alignment: Alignment.centerLeft, child: Text('Compensación IT vs IUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
                   const SizedBox(height: 12),
@@ -307,45 +338,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                  
 
-                  // BOTÓN CERRAR MES (El que ya tenías)
+                  // BOTÓN REGISTRAR IMPUESTOS A PAGAR
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: esUltimoDia ? Colors.deepPurpleAccent : Colors.grey.shade800, 
+                        backgroundColor: Colors.deepPurpleAccent,
                         foregroundColor: Colors.white, 
                         padding: const EdgeInsets.symmetric(vertical: 12), 
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                       ),
-                      onPressed: esUltimoDia ? () {
+                      onPressed: () {
                         showDialog(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             backgroundColor: cardColor,
-                            title: const Text('Cerrar Mes Fiscal', style: TextStyle(color: Colors.white)),
-                            content: const Text('¿Generar Cuentas por Pagar para el IT y el IVA de este mes y guardar los saldos a favor para el próximo mes?', style: TextStyle(color: Colors.white70)),
+                            title: const Text('Registrar Impuestos a Pagar', style: TextStyle(color: Colors.white)),
+                            content: const Text('¿Registrar Cuentas por Pagar del IVA y/o IT del periodo actual?', style: TextStyle(color: Colors.white70)),
                             actions: [
                               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurpleAccent),
                                 onPressed: () {
                                   Navigator.pop(ctx);
-                                  final double ivaAPagar = saldoIva < 0 ? saldoIva.abs() : 0.0;
-                                  final double nuevoSaldoAcaFavor = saldoIva > 0 ? saldoIva : 0.0;
-                                  _generarDeudasImpositivas(ivaAPagar, itPorPagarReal, nuevoSaldoAcaFavor, iueSobranteParaElFuturo);
+                                  _registrarImpuestosAPagar(saldoIva, itPorPagarReal, iueSobranteParaElFuturo);
                                 },
-                                child: const Text('Cerrar Mes', style: TextStyle(color: Colors.white)),
+                                child: const Text('Registrar', style: TextStyle(color: Colors.white)),
                               ),
                             ],
                           ),
                         );
-                      } : () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Solo puedes cerrar el mes el último día.'), backgroundColor: Colors.orange),
-                        );
                       },
-                      icon: Icon(esUltimoDia ? Icons.account_balance_rounded : Icons.lock_outline_rounded),
-                      label: Text(esUltimoDia ? 'Cerrar Mes Fiscal' : 'Cierre Bloqueado (Habilitado el día $lastDayOfMonth)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.account_balance_rounded),
+                      label: const Text('Registrar Impuestos a Pagar', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],

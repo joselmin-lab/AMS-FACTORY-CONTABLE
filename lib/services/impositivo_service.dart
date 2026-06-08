@@ -66,4 +66,15 @@ class ImpositivoService extends ChangeNotifier {
       debugPrint('Error actualizando saldos arrastrados: $e');
     }
   }
+
+  Future<void> actualizarSaldoIuePorCompensar(double nuevoSaldoIue) async {
+    try {
+      final nuevaConfig = _config.copyWith(
+        saldoIuePorCompensar: nuevoSaldoIue,
+      );
+      await updateConfig(nuevaConfig);
+    } catch (e) {
+      debugPrint('Error actualizando saldo IUE: $e');
+    }
+  }
 }

@@ -53,7 +53,7 @@ class PdfService {
             pw.Divider(thickness: 0.5),
             _buildInfoRow('Crédito Fiscal (Compras Locales):', _currencyFormat.format(ivaComprasLocal)),
             _buildInfoRow('Crédito Fiscal (Importaciones - Pólizas):', _currencyFormat.format(ivaImportacionesMes)),
-            _buildInfoRow('Saldo IVA a Favor del Mes Anterior:', _currencyFormat.format(saldoIvaAnterior)),
+            _buildInfoRow('Saldo IVA a Favor Arrastrado (consolidado):', _currencyFormat.format(saldoIvaAnterior)),
             pw.Divider(thickness: 0.5),
             _buildInfoRow('Total Crédito Fiscal Disponible:', _currencyFormat.format(ivaComprasTotal)),
             pw.SizedBox(height: 10),
