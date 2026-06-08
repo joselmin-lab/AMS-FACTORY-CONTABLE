@@ -75,7 +75,7 @@ class CuentasCobrarService extends ChangeNotifier {
   }
 
   // Método para registrar un pago a una cuenta existente y guardarlo en caja
-  Future<bool> registrarPago(String id, double montoAbono, String metodoPago) async {
+  Future<bool> registrarPago(String id, double montoAbono, String metodoPago, {DateTime? fechaPago}) async {
     try {
       // 1. Buscamos la cuenta actual en la lista local
       final cuenta = _cuentas.firstWhere((c) => c.id == id);
@@ -101,7 +101,7 @@ class CuentasCobrarService extends ChangeNotifier {
         'precio': montoAbono,
         'metodo_pago': metodoPago,
         'referencia_id': id,
-        'fecha': DateTime.now().toIso8601String(),
+        'fecha': (fechaPago ?? DateTime.now()).toIso8601String(),
       });
 
       // 6. Recargamos la lista para que la interfaz se actualice

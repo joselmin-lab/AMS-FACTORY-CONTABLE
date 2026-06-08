@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
 import 'package:ams_control_contable/models/compra.dart';
 import 'package:ams_control_contable/services/compras_service.dart';
@@ -41,6 +42,7 @@ class _CrearCompraScreenState extends State<CrearCompraScreen> {
 
   bool _facturado = false;
   String _metodoPago = 'Transferencia / QR';
+  DateTime _fechaCompra = DateTime.now();
   bool _isSaving = false;
 
   final List<String> _metodosPago = [
@@ -81,6 +83,11 @@ class _CrearCompraScreenState extends State<CrearCompraScreen> {
   double get _totalGeneral =>
       _lineas.fold(0.0, (sum, l) => sum + l.subtotal);
 
+  DateTime _combinarConHoraActual(DateTime soloFecha) {
+    final ahora = DateTime.now();
+    return DateTime(soloFecha.year, soloFecha.month, soloFecha.day, ahora.hour, ahora.minute, ahora.second);
+  }
+
   Future<List<Map<String, dynamic>>> _buscarEnInventario(String query) async {
     if (query.isEmpty) return [];
     try {
@@ -114,7 +121,7 @@ class _CrearCompraScreenState extends State<CrearCompraScreen> {
 
     setState(() => _isSaving = true);
 
-    final ahora = DateTime.now();
+    final ahora = _combinarConHoraActual(_fechaCompra);
     final compras = _lineas.map((linea) {
       final cantidad = double.parse(linea.cantidadCtrl.text);
       final precio = double.parse(linea.precioCtrl.text);
@@ -186,6 +193,24 @@ class _CrearCompraScreenState extends State<CrearCompraScreen> {
                 onChanged: (v) => setState(() => _facturado = v),
                 activeColor: AppColors.comprasColor,
                 contentPadding: EdgeInsets.zero,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today, color: AppColors.comprasColor),
+                title: const Text('Fecha de Compra'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(_fechaCompra)),
+                trailing: const Icon(Icons.edit_calendar),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _fechaCompra,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() => _fechaCompra = picked);
+                  }
+                },
               ),
 
               const SizedBox(height: 24),

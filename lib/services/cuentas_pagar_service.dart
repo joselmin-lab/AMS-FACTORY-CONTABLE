@@ -71,7 +71,7 @@ class CuentasPagarService extends ChangeNotifier {
   }
 
   // --- REGISTRO DE PAGO MULTIMONEDA ---
-  Future<bool> registrarPago(String id, double montoAbono, String metodoPago, {double tcCaja = 1.0}) async {
+  Future<bool> registrarPago(String id, double montoAbono, String metodoPago, {double tcCaja = 1.0, DateTime? fechaPago}) async {
     try {
       final cuenta = _cuentas.firstWhere((c) => c.id == id);
       
@@ -103,7 +103,7 @@ class CuentasPagarService extends ChangeNotifier {
         'precio': montoParaCajaBs,
         'metodo_pago': metodoPago,
         'facturado': false,
-        'fecha': DateTime.now().toIso8601String(),
+        'fecha': (fechaPago ?? DateTime.now()).toIso8601String(),
         'usuario_id': SupabaseService.client.auth.currentUser?.id,
       });
 

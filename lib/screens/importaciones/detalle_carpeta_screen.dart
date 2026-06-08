@@ -19,6 +19,11 @@ class _DetalleCarpetaScreenState extends State<DetalleCarpetaScreen> with Single
   final _curBs = NumberFormat.currency(locale: 'es_BO', symbol: 'Bs.', decimalDigits: 2);
   final _curUsd = NumberFormat.currency(locale: 'en_US', symbol: '\$', decimalDigits: 2);
 
+  DateTime _combinarConHoraActual(DateTime soloFecha) {
+    final ahora = DateTime.now();
+    return DateTime(soloFecha.year, soloFecha.month, soloFecha.day, ahora.hour, ahora.minute, ahora.second);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -180,6 +185,7 @@ class _DetalleCarpetaScreenState extends State<DetalleCarpetaScreen> with Single
     final fKey = GlobalKey<FormState>();
     final mC = TextEditingController();
     final tcC = TextEditingController(text: carpeta.tipoCambio.toString());
+    DateTime _fechaPago = DateTime.now();
     
     ImpGasto? gastoSel;
     String mon = 'USD'; 
@@ -253,7 +259,26 @@ class _DetalleCarpetaScreenState extends State<DetalleCarpetaScreen> with Single
                     if (mon == 'USD') ...[
                       const SizedBox(height: 16),
                       TextFormField(controller: tcC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'TC del Día (Para Caja Bs)')),
-                    ]
+                    ],
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_today, color: AppColors.importacionesColor),
+                      title: const Text('Fecha de Pago'),
+                      subtitle: Text(DateFormat('dd/MM/yyyy').format(_fechaPago)),
+                      trailing: const Icon(Icons.edit_calendar),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _fechaPago,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setS(() => _fechaPago = picked);
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -279,7 +304,7 @@ class _DetalleCarpetaScreenState extends State<DetalleCarpetaScreen> with Single
                 final String glosaAutomatica = 'Pago Carpeta Imp. #${carpeta.numeroDespacho} - ${gastoSel == null ? "FOB Fábrica" : "Gasto: " + gastoSel!.descripcion}';
 
                 final bs = orig * tcReal;
-                final p = ImpPago(gastoId: gastoSel?.id, concepto: glosaAutomatica, moneda: mon, montoOriginal: orig, tipoCambio: tcReal, montoBs: bs, fecha: DateTime.now());
+                final p = ImpPago(gastoId: gastoSel?.id, concepto: glosaAutomatica, moneda: mon, montoOriginal: orig, tipoCambio: tcReal, montoBs: bs, fecha: _combinarConHoraActual(_fechaPago));
                 
                 Navigator.pop(ctx); // Cerramos el diálogo primero para evitar bloqueos
                 
