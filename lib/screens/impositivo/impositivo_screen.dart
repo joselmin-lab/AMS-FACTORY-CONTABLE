@@ -20,7 +20,6 @@ class _ImpositivoScreenState extends State<ImpositivoScreen> {
   late TextEditingController _itVentasController;
   late TextEditingController _ivaComprasController;
   late TextEditingController _iueController;
-  late TextEditingController _saldoIvaController;
   late TextEditingController _saldoIueController;
   
   int _mesCierre = 12;
@@ -35,7 +34,6 @@ class _ImpositivoScreenState extends State<ImpositivoScreen> {
     _itVentasController = TextEditingController();
     _ivaComprasController = TextEditingController();
     _iueController = TextEditingController();
-    _saldoIvaController = TextEditingController();
     _saldoIueController = TextEditingController();
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -49,7 +47,6 @@ class _ImpositivoScreenState extends State<ImpositivoScreen> {
     _itVentasController.text = config.itVentas.toString();
     _ivaComprasController.text = config.ivaCompras.toString();
     _iueController.text = config.iueUtilidades.toString();
-    _saldoIvaController.text = config.saldoIvaAnterior.toString();
     _saldoIueController.text = config.saldoIuePorCompensar.toString();
     _mesCierre = config.mesCierreGestion;
 
@@ -65,7 +62,7 @@ class _ImpositivoScreenState extends State<ImpositivoScreen> {
       itVentas: double.parse(_itVentasController.text.replaceAll(',', '.')),
       ivaCompras: double.parse(_ivaComprasController.text.replaceAll(',', '.')),
       iueUtilidades: double.parse(_iueController.text.replaceAll(',', '.')),
-      saldoIvaAnterior: double.parse(_saldoIvaController.text.replaceAll(',', '.')),
+      saldoIvaAnterior: 0,
       saldoIuePorCompensar: double.parse(_saldoIueController.text.replaceAll(',', '.')),
       mesCierreGestion: _mesCierre,
     );
@@ -116,15 +113,13 @@ class _ImpositivoScreenState extends State<ImpositivoScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    const Text('Saldos a Favor (Memoria Fiscal)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.impositivoColor)),
-                    const Text('Estos montos se actualizan solos al "Cerrar Mes" en el Dashboard, pero puedes ajustarlos manualmente aquí si es necesario.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const Text('Compensaciones Arrastradas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.impositivoColor)),
+                    const Text('El IVA a favor se calcula automáticamente desde los movimientos registrados. Aquí solo se configura el saldo de IUE para compensación.', style: TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(child: TextFormField(controller: _saldoIvaController, decoration: const InputDecoration(labelText: 'Saldo IVA a Favor (Bs)'), keyboardType: TextInputType.number)),
-                        const SizedBox(width: 16),
-                        Expanded(child: TextFormField(controller: _saldoIueController, decoration: const InputDecoration(labelText: 'IUE Pagado por Compensar (Bs)'), keyboardType: TextInputType.number)),
-                      ],
+                    TextFormField(
+                      controller: _saldoIueController,
+                      decoration: const InputDecoration(labelText: 'IUE Pagado por Compensar (Bs)'),
+                      keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 32),
 

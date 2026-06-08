@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ams_control_contable/widgets/app_drawer.dart';
+import 'package:ams_control_contable/core/utils/iva_consolidado_helper.dart';
 import 'package:ams_control_contable/services/pdf_service.dart';
 
 import 'package:ams_control_contable/services/ventas_service.dart';
@@ -68,24 +69,29 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
       final comprasFacMes = compras.where((c) => c.facturado && _esMesSeleccionado(c.fecha)).fold(0.0, (sum, c) => sum + (c.precio * c.cantidad));
       final salidasFacMes = salidas.where((s) => s.facturado && _esMesSeleccionado(s.fecha)).fold(0.0, (sum, s) => sum + s.precio);
-      final gastosFacMes = gastos.where((g) => (g.facturado ?? false) && _esMesSeleccionado(g.fecha)).fold(0.0, (sum, g) => sum + (g.monto ?? 0));
+      final gastosFacMes = gastos.where((g) => g.facturado && _esMesSeleccionado(g.fecha)).fold(0.0, (sum, g) => sum + g.monto);
       final baseComprasLocal = comprasFacMes + salidasFacMes + gastosFacMes;
       final ivaComprasLocal = baseComprasLocal * (configImp.ivaCompras / 100);
 
-      double ivaImportacionesMes = 0;
-      for (var carpeta in importaciones) {
-        for (var gasto in carpeta.gastos) {
-          if (gasto.fechaGasto.year == _selectedYear && gasto.fechaGasto.month == _selectedMonth) {
-            if (gasto.tipoSistema == 'IVA') {
-              ivaImportacionesMes += gasto.montoBs;
-            } else if (gasto.tieneIva) {
-              ivaImportacionesMes += gasto.montoBs * (configImp.ivaCompras / 100);
-            }
-          }
-        }
-      }
+      final mesSeleccionado = DateTime(_selectedYear, _selectedMonth, 1);
+      final saldoIvaArrastrado = IvaConsolidadoHelper.calcularSaldoIvaArrastrado(
+        ventas: ventas,
+        ingresos: ingresos,
+        compras: compras,
+        salidas: salidas,
+        gastos: gastos,
+        importaciones: importaciones,
+        ivaVentasPct: configImp.ivaVentas,
+        ivaComprasPct: configImp.ivaCompras,
+        mesReferencia: mesSeleccionado,
+      );
+      final ivaImportacionesMes = IvaConsolidadoHelper.calcularIvaImportacionesMes(
+        importaciones: importaciones,
+        ivaComprasPct: configImp.ivaCompras,
+        mesReferencia: mesSeleccionado,
+      );
 
-      final ivaComprasTotal = ivaComprasLocal + ivaImportacionesMes + configImp.saldoIvaAnterior;
+      final ivaComprasTotal = ivaComprasLocal + ivaImportacionesMes + saldoIvaArrastrado;
       final saldoIva = ivaComprasTotal - ivaVentasTotal;
 
       final itCalculadoOriginal = baseVentas * (configImp.itVentas / 100);
@@ -136,7 +142,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
         ivaComprasLocal: ivaComprasLocal,
         ivaImportacionesMes: ivaImportacionesMes,
         ivaComprasTotal: ivaComprasTotal,
-        saldoIvaAnterior: configImp.saldoIvaAnterior,
+        saldoIvaAnterior: saldoIvaArrastrado,
         saldoIvaFinal: saldoIva,
         itCalculado: itCalculadoOriginal,
         iueCompensar: configImp.saldoIuePorCompensar,
