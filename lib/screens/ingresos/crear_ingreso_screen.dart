@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:ams_control_contable/models/ingreso.dart';
 import 'package:ams_control_contable/services/ingresos_service.dart';
 
@@ -18,7 +19,13 @@ class _CrearIngresoScreenState extends State<CrearIngresoScreen> {
   
   String _metodoPago = 'Transferencia';
   bool _facturado = false;
+  DateTime _fecha = DateTime.now();
   bool _isSaving = false;
+
+  DateTime _combinarConHoraActual(DateTime soloFecha) {
+    final ahora = DateTime.now();
+    return DateTime(soloFecha.year, soloFecha.month, soloFecha.day, ahora.hour, ahora.minute, ahora.second);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +74,24 @@ class _CrearIngresoScreenState extends State<CrearIngresoScreen> {
                 onChanged: (v) => setState(() => _facturado = v),
                 activeColor: Colors.teal,
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today, color: Colors.teal),
+                title: const Text('Fecha'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
+                trailing: const Icon(Icons.edit_calendar),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _fecha,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() => _fecha = picked);
+                  }
+                },
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descripcionCtrl,
@@ -98,7 +123,7 @@ class _CrearIngresoScreenState extends State<CrearIngresoScreen> {
       precio: double.parse(_precioCtrl.text),
       metodoPago: _metodoPago,
       facturado: _facturado,
-      fecha: DateTime.now(),
+      fecha: _combinarConHoraActual(_fecha),
     );
 
     final success = await context.read<IngresosService>().createIngreso(nuevoIngreso);

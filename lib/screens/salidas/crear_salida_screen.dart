@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:ams_control_contable/models/salida.dart';
 import 'package:ams_control_contable/services/salidas_service.dart';
 
@@ -19,7 +20,13 @@ class _CrearSalidaScreenState extends State<CrearSalidaScreen> {
   
   bool _facturado = false;
   String _metodoPago = 'Efectivo';
+  DateTime _fecha = DateTime.now();
   final List<String> _metodosPago = ['QR', 'Efectivo', 'Tarjeta', 'Crédito', 'Transferencia'];
+
+  DateTime _combinarConHoraActual(DateTime soloFecha) {
+    final ahora = DateTime.now();
+    return DateTime(soloFecha.year, soloFecha.month, soloFecha.day, ahora.hour, ahora.minute, ahora.second);
+  }
 
   @override
   void dispose() {
@@ -37,7 +44,7 @@ class _CrearSalidaScreenState extends State<CrearSalidaScreen> {
         precio: double.parse(_precioCtrl.text),
         metodoPago: _metodoPago,
         facturado: _facturado,
-        fecha: DateTime.now(),
+        fecha: _combinarConHoraActual(_fecha),
       );
 
       context.read<SalidasService>().createSalida(nuevaSalida);
@@ -104,6 +111,24 @@ class _CrearSalidaScreenState extends State<CrearSalidaScreen> {
                 onChanged: (v) => setState(() => _facturado = v),
                 activeColor: Colors.deepOrange,
                 contentPadding: EdgeInsets.zero,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today, color: colorModulo),
+                title: const Text('Fecha'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
+                trailing: const Icon(Icons.edit_calendar),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _fecha,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() => _fecha = picked);
+                  }
+                },
               ),
               const SizedBox(height: 32),
 

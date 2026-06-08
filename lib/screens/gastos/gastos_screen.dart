@@ -42,6 +42,7 @@ class _GastosScreenState extends State<GastosScreen> with SingleTickerProviderSt
     final montoCtrl = TextEditingController(text: gasto?.monto.toString());
     final notasCtrl = TextEditingController(text: gasto?.notas);
     bool isFacturado = gasto?.facturado ?? false; // <--- NUEVO ESTADO DEL SWITCH
+    DateTime fechaSeleccionada = gasto?.fecha ?? DateTime.now();
     
     // Por defecto seleccionamos el tipo de la pestaña actual o el del gasto si estamos editando
     TipoGasto tipoSeleccionado = gasto?.tipo ?? TipoGasto.values[_tabController.index];
@@ -97,6 +98,25 @@ class _GastosScreenState extends State<GastosScreen> with SingleTickerProviderSt
                       contentPadding: EdgeInsets.zero,
                     ),
                     const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_today, color: AppColors.gastosColor),
+                      title: const Text('Fecha'),
+                      subtitle: Text(_dateFormat.format(fechaSeleccionada)),
+                      trailing: const Icon(Icons.edit_calendar),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: fechaSeleccionada,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setStateDialog(() => fechaSeleccionada = picked);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: notasCtrl,
                       decoration: const InputDecoration(labelText: 'Notas adicionales'),
@@ -117,7 +137,7 @@ class _GastosScreenState extends State<GastosScreen> with SingleTickerProviderSt
                       descripcion: descripcionCtrl.text.trim(),
                       monto: double.parse(montoCtrl.text),
                       tipo: tipoSeleccionado,
-                      fecha: gasto?.fecha ?? DateTime.now(),
+                      fecha: fechaSeleccionada,
                       facturado: isFacturado, // <--- GUARDAMOS EL SWITCH
                       notas: notasCtrl.text.trim(),
                     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:ams_control_contable/core/constants/app_colors.dart';
 import 'package:ams_control_contable/core/constants/app_strings.dart';
 import 'package:ams_control_contable/models/venta.dart';
@@ -43,6 +44,7 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
 
   bool _facturado = false;
   String _metodoPago = AppStrings.pagoEfectivo;
+  DateTime _fechaVenta = DateTime.now();
   bool _isLoadingItems = true;
   bool _isSaving = false;
 
@@ -105,6 +107,11 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
   double get _totalGeneral =>
       _lineas.fold(0.0, (sum, l) => sum + l.subtotal);
 
+  DateTime _combinarConHoraActual(DateTime soloFecha) {
+    final ahora = DateTime.now();
+    return DateTime(soloFecha.year, soloFecha.month, soloFecha.day, ahora.hour, ahora.minute, ahora.second);
+  }
+
   Future<void> _guardarVenta() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -123,7 +130,7 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
 
     setState(() => _isSaving = true);
 
-    final ahora = DateTime.now();
+    final ahora = _combinarConHoraActual(_fechaVenta);
     final notasTrimmed = _notasCtrl.text.trim();
     final ventas = _lineas.map((linea) {
       final cantidad = double.parse(linea.cantidadCtrl.text);
@@ -195,6 +202,24 @@ class _CrearVentaScreenState extends State<CrearVentaScreen> {
                     onChanged: (v) => setState(() => _facturado = v),
                     activeColor: AppColors.ventasColor,
                     contentPadding: EdgeInsets.zero,
+                  ),
+                  ListTile(
+                   contentPadding: EdgeInsets.zero,
+                   leading: const Icon(Icons.calendar_today, color: AppColors.ventasColor),
+                   title: const Text('Fecha de Venta'),
+                   subtitle: Text(DateFormat('dd/MM/yyyy').format(_fechaVenta)),
+                   trailing: const Icon(Icons.edit_calendar),
+                   onTap: () async {
+                     final picked = await showDatePicker(
+                       context: context,
+                       initialDate: _fechaVenta,
+                       firstDate: DateTime(2020),
+                       lastDate: DateTime.now(),
+                     );
+                     if (picked != null) {
+                       setState(() => _fechaVenta = picked);
+                     }
+                   },
                   ),
 
                   const SizedBox(height: 24),

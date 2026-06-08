@@ -31,6 +31,7 @@ class _CobrarScreenState extends State<CobrarScreen> {
     final _montoCtrl = TextEditingController();
     final _formKey = GlobalKey<FormState>();
     String _metodoPago = 'Efectivo'; // Valor por defecto
+    DateTime _fechaPago = DateTime.now();
 
     showDialog(
       context: context,
@@ -66,6 +67,25 @@ class _CobrarScreenState extends State<CobrarScreen> {
                         .map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
                     onChanged: (val) => setStateDialog(() => _metodoPago = val!),
                   ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_today, color: AppColors.cobrarColor),
+                    title: const Text('Fecha de Pago'),
+                    subtitle: Text(_dateFormat.format(_fechaPago)),
+                    trailing: const Icon(Icons.edit_calendar),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _fechaPago,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setStateDialog(() => _fechaPago = picked);
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -79,7 +99,7 @@ class _CobrarScreenState extends State<CobrarScreen> {
                     Navigator.pop(ctx);
                     
                     // Ahora mandamos el método de pago también
-                    final ok = await context.read<CuentasCobrarService>().registrarPago(cuenta.id!, monto, _metodoPago);
+                    final ok = await context.read<CuentasCobrarService>().registrarPago(cuenta.id!, monto, _metodoPago, fechaPago: _fechaPago);
                     
                     if (ok && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pago registrado correctamente. Dinero ingresado a caja.'), backgroundColor: AppColors.success));

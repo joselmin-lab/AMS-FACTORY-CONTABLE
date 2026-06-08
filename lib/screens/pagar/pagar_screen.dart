@@ -47,6 +47,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
     final _tcCtrl = TextEditingController(text: '6.96'); // Solo se usa si es USD
     final _formKey = GlobalKey<FormState>();
     String _metodoPago = 'Transferencia';
+    DateTime _fechaPago = DateTime.now();
 
     final esVariableNuevo = cuenta.montoTotal == 0;
     final esUsd = cuenta.moneda == 'USD';
@@ -111,6 +112,25 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
                     }).toList(),
                     onChanged: (v) => setStateDialog(() => _metodoPago = v!),
                   ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_today, color: AppColors.pagarColor),
+                    title: const Text('Fecha de Pago'),
+                    subtitle: Text(_dateFormat.format(_fechaPago)),
+                    trailing: const Icon(Icons.edit_calendar),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _fechaPago,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setStateDialog(() => _fechaPago = picked);
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -130,7 +150,7 @@ class _PagarScreenState extends State<PagarScreen> with SingleTickerProviderStat
                       await context.read<CuentasPagarService>().updateCuenta(cuentaActualizada);
                     } else {
                       // Abonamos a la deuda normal (Envía la info al servicio)
-                      final ok = await context.read<CuentasPagarService>().registrarPago(cuenta.id!, abono, _metodoPago, tcCaja: tc);
+                      final ok = await context.read<CuentasPagarService>().registrarPago(cuenta.id!, abono, _metodoPago, tcCaja: tc, fechaPago: _fechaPago);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Pago registrado correctamente.' : 'Error al procesar el pago.'), backgroundColor: ok ? Colors.green : Colors.red));
                       }
